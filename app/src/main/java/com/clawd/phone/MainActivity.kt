@@ -65,13 +65,65 @@ class MainActivity : Activity() {
                 ),
             ).apply { setLayerInset(1, 0, 0, 0, ui.dp(3)) }
         }
+        settingsPage = ScrollView(this).apply { addView(root) }
+        wardrobePage = WardrobeView(this, prefs).apply { visibility = View.GONE }
+        val pages = android.widget.FrameLayout(this).apply {
+            addView(settingsPage)
+            addView(wardrobePage)
+        }
         val page = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(t.gray)
             addView(bar, LinearLayout.LayoutParams(-1, ui.dp(56)))
-            addView(ScrollView(this@MainActivity).apply { addView(root) }, LinearLayout.LayoutParams(-1, 0, 1f))
+            addView(tabBar(), LinearLayout.LayoutParams(-1, ui.dp(50)))
+            addView(pages, LinearLayout.LayoutParams(-1, 0, 1f))
         }
         setContentView(page)
+        if (intent?.getBooleanExtra("wardrobe", false) == true) showTab(1)
+    }
+
+    private lateinit var settingsPage: ScrollView
+    private lateinit var wardrobePage: WardrobeView
+    private val tabViews = ArrayList<TextView>()
+
+    /** Две вкладки под шапкой: «Настройки» и «Гардероб». */
+    private fun tabBar(): LinearLayout {
+        val t = ui.t
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setBackgroundColor(t.cell)
+            setPadding(ui.dp(12), ui.dp(6), ui.dp(12), ui.dp(6))
+        }
+        for ((i, name) in listOf("⚙ НАСТРОЙКИ", "👕 ГАРДЕРОБ").withIndex()) {
+            val tab = TextView(this).apply {
+                text = name
+                textSize = 14f
+                letterSpacing = 0.06f
+                typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
+                gravity = Gravity.CENTER
+                setOnClickListener { showTab(i) }
+            }
+            tabViews.add(tab)
+            row.addView(tab, LinearLayout.LayoutParams(0, -1, 1f).apply { if (i == 0) marginEnd = ui.dp(6) })
+        }
+        styleTabs(0)
+        return row
+    }
+
+    private fun styleTabs(on: Int) {
+        val t = ui.t
+        val d = resources.displayMetrics.density
+        tabViews.forEachIndexed { i, v ->
+            v.setTextColor(if (i == on) 0xFF1A0F0A.toInt() else t.sub)
+            v.background = if (i == on) PixelDrawable(t.accent2, null, null, step = 3 * d) else null
+        }
+    }
+
+    private fun showTab(i: Int) {
+        styleTabs(i)
+        settingsPage.visibility = if (i == 0) View.VISIBLE else View.GONE
+        wardrobePage.visibility = if (i == 1) View.VISIBLE else View.GONE
+        if (i == 1) wardrobePage.refresh() else ui.refresh()
     }
 
     override fun onResume() {
@@ -111,11 +163,12 @@ class MainActivity : Activity() {
         ui.selector(
             "color", "Окрас",
             Sprite.colors.mapIndexed { i, c ->
-                val need = Sprite.colorAch[i]
-                if (need != null && need !in Achievements.done(prefs)) "${c.name} 🔒" else c.name
+                if (Sprite.colorOpen(i, Achievements.done(prefs))) c.name
+                else "${c.name} 🔒 ${Wardrobe.needText(Sprite.colorNeed[i])}"
             },
             "color",
         )
+        ui.text("Гардероб", "Шапки, очки, крылья, узоры, ауры — больше сотни вещей", "crown", accent = true) { showTab(1) }
 
         ui.header("Разрешения")
         ui.text("Поверх других приложений", icon = "screen", sub = { if (Settings.canDrawOverlays(this)) "✓ Разрешено" else "Нажми, чтобы разрешить" }) {
@@ -179,14 +232,6 @@ class MainActivity : Activity() {
         )
         ui.switch("hide_fullscreen", "Прячется в играх и видео", "Уходит, когда игра или видео на весь экран (горизонтально)", "game")
         ui.divider("Всё это работает через спецвозможности. Тексты с экрана никуда не отправляются, пока ты сам не разрешишь это для ИИ ниже.")
-
-        ui.header("Аксессуары")
-        ui.selector("acc", "Аксессуар", listOf("Авто (лучшее открытое)", "Без аксессуара") + Sprite.accessories.map { it.label }, "crown")
-        ui.text("Открыто", icon = "star", sub = {
-            val u = PetService.unlockedAccessories(PetService.bondValue(this, prefs), Achievements.done(prefs))
-            Sprite.accessories.filter { it.key in u }.joinToString(", ") { it.label }.ifEmpty { "пока ничего" }
-        })
-        ui.text("Следующий", icon = "stats", sub = { PetService.nextAccessoryHint(PetService.bondValue(this, prefs)) })
 
         ui.header("Голод")
         ui.switch("hunger", "Хочет есть", "Как тамагочи: со временем голодает, просит рыбку, а голодный чаще ест кнопки и обижается", "food")
@@ -405,7 +450,13 @@ class PreviewView(context: Context, private val prefs: Prefs) : View(context) {
             else -> Pose(legs = if ((t / 150) % 2 == 0L) "walk1" else "walk2", look = 1, acc = acc)
         }
         val bmp = sprites.get(pose, unit, PetService.colorFor(prefs))
-        canvas.drawBitmap(bmp, (width - bmp.width) / 2f, (height - bmp.height) / 2f, null)
+        // в высокой шляпе или с крыльями кадр больше — ужимаем, чтобы влез целиком
+        val s = minOf(1f, width.toFloat() / bmp.width, height.toFloat() / bmp.height)
+        canvas.save()
+        canvas.translate(width / 2f, height / 2f)
+        canvas.scale(s, s)
+        canvas.drawBitmap(bmp, -bmp.width / 2f, -bmp.height / 2f, null)
+        canvas.restore()
         postInvalidateDelayed(50)
     }
 }

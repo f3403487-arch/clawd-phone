@@ -167,8 +167,7 @@ class PetService : Service(), SensorEventListener, SharedPreferences.OnSharedPre
         /** Окрас: выбранный, если он открыт (часть окрасов — награда за достижения). */
         fun colorFor(prefs: Prefs): Int {
             val c = prefs.i("color").coerceIn(0, Sprite.colors.size - 1)
-            val need = Sprite.colorAch[c] ?: return c
-            return if (need in Achievements.done(prefs)) c else 0
+            return if (Sprite.colorOpen(c, Achievements.done(prefs))) c else 0
         }
 
         fun nextAccessoryHint(bond: Float?): String {
@@ -177,17 +176,12 @@ class PetService : Service(), SensorEventListener, SharedPreferences.OnSharedPre
             return "«${next.label}»: нужна привязанность ${next.need!!.toInt()}, сейчас ${bond.toInt()}. Гладь и корми!"
         }
 
-        /** Что надето: выбранный аксессуар, если открыт, или лучший открытый в режиме «Авто». */
-        fun accessoryFor(context: Context, prefs: Prefs): String? {
-            val idx = prefs.i("acc")
-            if (idx == 1) return null
-            val unlocked = unlockedAccessories(bondValue(context, prefs), Achievements.done(prefs))
-            if (idx >= 2) return Sprite.accessories.getOrNull(idx - 2)?.key?.takeIf { it in unlocked }
-            if ("santa" in unlocked) return "santa"
-            return Sprite.accessories.lastOrNull { it.need != null && it.key in unlocked }?.key
-        }
+        /** Что надето из гардероба (открытое), через запятую — для кадра и превью; null — ничего. */
+        fun accessoryFor(context: Context, prefs: Prefs): String? =
+            Wardrobe.worn(context, prefs).values.joinToString(",").ifEmpty { null }
 
-        fun accLabel(key: String?) = Sprite.accessories.firstOrNull { it.key == key }?.label?.lowercase() ?: ""
+        fun accLabel(key: String?) =
+            key?.split(',')?.mapNotNull { Wardrobe.items[it]?.name?.lowercase() }?.joinToString(", ").orEmpty()
     }
 
     /** Состояния как в плагине: idle, walk, sleep, press, drag, pet, fly, hang, peek (+ слияние с Telegram). */
@@ -694,6 +688,11 @@ class PetService : Service(), SensorEventListener, SharedPreferences.OnSharedPre
 
     override fun onSharedPreferenceChanged(sp: SharedPreferences?, key: String?) {
         handler.post {
+            if (key != null && key.startsWith("w_") && key != "w_tried") {
+                accKey = resolveAccessory()
+                nextAura = 0L
+                pose = null
+            }
             when (key) {
                 "size", "color", "acc", "ach" -> {
                     accKey = resolveAccessory()
@@ -761,8 +760,11 @@ class PetService : Service(), SensorEventListener, SharedPreferences.OnSharedPre
         else -> 0f
     }
 
-    /** Запас вокруг спрайта, чтобы наклоны тела (как в плагине) не обрезались краем окна. */
-    private fun petPad() = unit * 2
+    /** Запас вокруг спрайта, чтобы наклоны тела (как в плагине) и высокие шапки/крылья не обрезались краем окна. */
+    private fun petPad() = unit * (2 + outfitPad)
+
+    /** Сколько клеток запаса нужно надетой одежде (Wardrobe.pad), обновляется вместе с кадром. */
+    private var outfitPad = 0
 
     private fun placePet(force: Boolean = false) {
         val pad = petPad().toFloat()
@@ -1060,6 +1062,7 @@ class PetService : Service(), SensorEventListener, SharedPreferences.OnSharedPre
             lookDir = if (lookDir != 0) -lookDir else 1
         }
         updatePose(now)
+        auraTick(now)
         stepFlyers(now)
         stepBuddy(now, dt)
         place(now)
@@ -2739,16 +2742,14 @@ class PetService : Service(), SensorEventListener, SharedPreferences.OnSharedPre
         if (mode != Mode.IDLE && mode != Mode.WALK) return
         hop(dp(520f))
         repeat(3) { spawn("spark") }
-        val worn = prefs.i("acc") == 0
-        showBubble("Новый аксессуар: $label! " + if (worn) "Уже надел" else "Выбери в настройках")
+        showBubble("Новая вещь: $label! Надень в гардеробе")
     }
 
     private fun showOutfits() {
-        val bond = bondValue(this, prefs)
-        val unlocked = unlockedAccessories(bond)
-        val opened = Sprite.accessories.filter { it.key in unlocked }.joinToString(", ") { it.label }.ifEmpty { "пока ничего" }
+        val open = Wardrobe.openKeys(this, prefs).count { Wardrobe.items[it]?.auto == false }
+        val all = Wardrobe.items.values.count { !it.auto }
         val current = accLabel(accKey).ifEmpty { "ничего" }
-        showBubble("Открыто: $opened\nСейчас на мне: $current\n${nextAccessoryHint(bond)}", long = true)
+        showBubble("Гардероб: открыто $open из $all\nСейчас на мне: $current\nНадеть — в приложении, вкладка «Гардероб»", long = true)
     }
 
     // =====================================================================
@@ -3388,6 +3389,12 @@ class PetService : Service(), SensorEventListener, SharedPreferences.OnSharedPre
             pose = next
             petView.bitmap = sprites.get(next, unit, colorIdx)
             petView.invalidate()
+            val padNow = Wardrobe.pad(next.acc)
+            if (padNow != outfitPad) {
+                // надели что-то высокое или сняли — окно подрастает/сжимается вокруг Clawd
+                outfitPad = padNow
+                placePet(force = true)
+            }
         }
         // наклон тела, как в плагине
         val rotation = when {
@@ -3740,21 +3747,44 @@ class PetService : Service(), SensorEventListener, SharedPreferences.OnSharedPre
     /** С 22 до 7 — пижама (ночной колпак). */
     private fun nightClothes() = hour() >= 22 || hour() < 7
 
-    /** Всё, что на Clawd сейчас: выбранный аксессуар + погода, ночь, учёба, файл в руках. */
+    /** Всё, что на Clawd сейчас: гардероб + погода, ночь, учёба, файл в руках (они важнее выбранного в слоте). */
     private fun outfit(): String? {
-        val list = ArrayList<String>()
+        val wear = LinkedHashMap<String, String>()
+        accKey?.split(',')?.forEach { k -> Wardrobe.items[k]?.let { if (it.slot != "aura") wear[it.slot] = k } }
         val w = weatherNow?.kind
-        val headOverride = when {
-            w == "rain" -> "umbrella"
-            nightClothes() -> "nightcap"
-            else -> null
+        when {
+            w == "rain" -> wear["head"] = "umbrella"
+            nightClothes() -> wear["head"] = "nightcap"
+            santaSeason() && "head" !in wear -> wear["head"] = "santa"
         }
-        accKey?.let { if (headOverride == null || it !in Sprite.headAcc) list.add(it) }
-        headOverride?.let { list.add(it) }
-        if (w == "snow" || w == "cold") list.add("scarf")
-        if (pomoPhase == "focus" && "glasses" !in list) list.add("glasses")
+        if (w == "snow" || w == "cold") wear["neck"] = "scarf"
+        if (pomoPhase == "focus") wear["face"] = "glasses"
+        val list = Wardrobe.slotKeys.mapNotNull { wear[it] }.toMutableList()
         if (now() < carryUntil) list.add("file")
         return list.joinToString(",").ifEmpty { null }
+    }
+
+    private var nextAura = 0L
+
+    /** Аура из гардероба: частицы вокруг Clawd, чаще — когда он бегает или летит. */
+    private fun auraTick(now: Long) {
+        if (!shown || merged || now < nextAura) return
+        val a = accKey?.split(',')?.firstNotNullOfOrNull { Wardrobe.items[it]?.aura } ?: return
+        val moving = mode == Mode.WALK || mode == Mode.AIR || mode == Mode.DRAG || hopActive
+        nextAura = now + (a.every * 1000 * rnd(0.6f, 1.4f) * (if (moving) 0.6f else 1f)).toLong()
+        if (a.shape == "heart") {
+            spawn("heart")
+            return
+        }
+        val color = if (a.colors.isNotEmpty()) a.colors[Random.nextInt(a.colors.size)] else 0xFFFF6FA8.toInt()
+        val ch = a.text.takeIf { it.isNotEmpty() }?.let { it[Random.nextInt(it.length)] }
+        val kind = "aura|${Sprite.auraGlyph(a.shape, ch)}|$color"
+        if (a.fall) {
+            val sx = x + petW / 2f + rnd(-petW * 0.6f, petW * 0.6f)
+            fx.addTween(kind, sx, y + hopOff - dp(50f), sx + rnd(-dp(14f), dp(14f)), y + hopOff + petH * 0.8f,
+                1f, 1f, 0f, rnd(-90f, 90f), 1400, accel = false)
+            kick()
+        } else spawn(kind)
     }
 
     /** Утром при первой разблокировке — потягивается и здоровается. */
@@ -4481,16 +4511,22 @@ class PetService : Service(), SensorEventListener, SharedPreferences.OnSharedPre
         for (a in Achievements.all) {
             if (a.key in done) continue
             if (a.progress(this, prefs) < a.goal) continue
+            val before = Wardrobe.openKeys(this, prefs)
             Achievements.mark(prefs, a.key)
             if (prefs.b("brain_enabled")) brain.record("achievement", a.title)
+            // что открылось в гардеробе вместе с ачивкой
+            val fresh = (Wardrobe.openKeys(this, prefs) - before).mapNotNull { Wardrobe.items[it]?.name }
+            val gifts = listOfNotNull(a.reward) + fresh.take(2).map { "«$it»" }
+            val more = if (fresh.size > 2) " и ещё ${fresh.size - 2}" else ""
+            val opened = if (gifts.isEmpty()) "" else gifts.joinToString(", ") + more
             if (shown && !merged) {
                 wakeUp()
                 hop(dp(650f))
                 repeat(4) { spawn("spark") }
                 haptic(0)
-                showBubble("🏆 ${a.title}!" + (a.reward?.let { " Открыто: $it" } ?: ""), long = true)
+                showBubble("🏆 ${a.title}!" + (if (opened.isNotEmpty()) " Открыто: $opened" else ""), long = true)
             }
-            alert("🏆 Достижение: ${a.title}", a.desc + (a.reward?.let { " — открыто: $it" } ?: ""))
+            alert("🏆 Достижение: ${a.title}", a.desc + (if (opened.isNotEmpty()) " — открыто: $opened" else ""))
             break
         }
     }

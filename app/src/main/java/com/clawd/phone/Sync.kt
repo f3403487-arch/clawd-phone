@@ -154,6 +154,8 @@ object SyncServer {
                 val reply = brain.syncExport()
                 reply.put("food", JSONObject().put("level", PetService.foodLevel(prefs).toDouble()).put("ts", prefs.l("food_ts") / 1000.0))
                 reply.put("name", prefs.s("brain_name")).put("about", prefs.s("brain_about"))
+                // ачивки открывают вещи гардероба и в плагине
+                reply.put("ach", JSONArray(Achievements.done(prefs).toList()))
                 "200 OK" to reply
             }
             else -> "404 Not Found" to JSONObject().put("error", "not found")

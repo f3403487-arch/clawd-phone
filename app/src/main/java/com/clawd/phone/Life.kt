@@ -33,6 +33,8 @@ object Achievements {
         Ach("seek10", "Сыщик", "Найти Clawd в прятках 10 раз", 10, null) { _, p -> p.i("seek_found") },
         Ach("remind5", "Ничего не забуду", "5 напоминаний", 5, null) { _, p -> p.i("remind_done") },
         Ach("throw50", "Метатель", "Бросить Clawd 50 раз", 50, null) { c, p -> PetService.brain(c).stat("throw") + p.i("pc_throws") },
+        Ach("style10", "Модник", "Примерить 10 разных вещей из гардероба", 10, "окрас «Лава»") { _, p -> p.i("tried_count") },
+        Ach("style40", "Икона стиля", "Примерить 40 разных вещей", 40, null) { _, p -> p.i("tried_count") },
     )
 
     fun done(prefs: Prefs): Set<String> = prefs.s("ach").split(',').filter { it.isNotEmpty() }.toSet()

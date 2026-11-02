@@ -41,10 +41,41 @@ object Sprite {
         PetColors("Лаймовый", 0xFF9BD45A.toInt(), 0xFF16240A.toInt()),
         PetColors("Призрак", 0xFFE9ECF2.toInt(), 0xFF3A3A44.toInt()),
         PetColors("Ночной", 0xFF2E3A6E.toInt(), 0xFFF2F2F2.toInt()),
+        // как на ПК: 10–15 открыты сразу, дальше — за число ачивок или за конкретную
+        PetColors("Вишнёвый", 0xFFC2405A.toInt(), 0xFF1A0A10.toInt()),
+        PetColors("Апельсин", 0xFFF28A2E.toInt(), 0xFF2A1405.toInt()),
+        PetColors("Банан", 0xFFF2D04A.toInt(), 0xFF2A2205.toInt()),
+        PetColors("Изумруд", 0xFF2FA36B.toInt(), 0xFF08201A.toInt()),
+        PetColors("Бирюза", 0xFF2BC4C4.toInt(), 0xFF062424.toInt()),
+        PetColors("Персик", 0xFFF5B08A.toInt(), 0xFF2A160C.toInt()),
+        PetColors("Шоколад", 0xFF7A4A2E.toInt(), 0xFFF2E6DC.toInt()),
+        PetColors("Снежный", 0xFFFFFFFF.toInt(), 0xFF1A1A2A.toInt()),
+        PetColors("Сапфир", 0xFF3156C9.toInt(), 0xFFF2F2F2.toInt()),
+        PetColors("Сирень", 0xFFC08AE8.toInt(), 0xFF22142E.toInt()),
+        PetColors("Фуксия", 0xFFE04FB0.toInt(), 0xFF2A0A20.toInt()),
+        PetColors("Кофе с молоком", 0xFFB08A6A.toInt(), 0xFF24180F.toInt()),
+        PetColors("Песок", 0xFFD9C08A.toInt(), 0xFF2A2010.toInt()),
+        PetColors("Морской", 0xFF1F7A8C.toInt(), 0xFFE8FBFF.toInt()),
+        PetColors("Клубника", 0xFFFF5A7A.toInt(), 0xFFFFFFFF.toInt()),
+        PetColors("Оливка", 0xFF8A9A3A.toInt(), 0xFF16180A.toInt()),
+        PetColors("Ледяной", 0xFFBFE8FF.toInt(), 0xFF1A3A5A.toInt()),
+        PetColors("Розовое золото", 0xFFE6A89A.toInt(), 0xFF3A1A14.toInt()),
+        PetColors("Мята-шоколад", 0xFFA6E6C8.toInt(), 0xFF4A2A1A.toInt()),
+        PetColors("Тыква", 0xFFFF8C1A.toInt(), 0xFF1A0F05.toInt()),
+        PetColors("Уголь", 0xFF26262C.toInt(), 0xFFFF5A5A.toInt()),
+        PetColors("Неон", 0xFF39FF8A.toInt(), 0xFF06200F.toInt()),
+        PetColors("Кибер", 0xFF00E5FF.toInt(), 0xFF1A0033.toInt()),
+        PetColors("Лава", 0xFFFF4A1A.toInt(), 0xFFFFE14A.toInt()),
     )
 
-    /** Какое достижение открывает окрас (индекс в colors). */
-    val colorAch = mapOf(6 to "pet100", 7 to "eat50", 8 to "clean10", 9 to "pomo5")
+    /** Замок окраса (индекс в colors): id ачивки или сколько ачивок всего; нет в списке — открыт. */
+    val colorNeed: Map<Int, Any> = mapOf(
+        6 to "pet100", 7 to "eat50", 8 to "clean10", 9 to "pomo5",
+        16 to 1, 17 to 2, 18 to 3, 19 to 4, 20 to 5, 21 to 6, 22 to 7, 23 to 8, 24 to 9, 25 to 10, 26 to 11, 27 to 12,
+        28 to 13, 29 to 14, 30 to "throw50", 31 to "seek10", 32 to "tag5", 33 to "style10",
+    )
+
+    fun colorOpen(i: Int, done: Set<String>) = Wardrobe.needOpen(colorNeed[i], done)
 
     val accessories = listOf(
         Accessory("bow", "Бантик", 15f),
@@ -56,25 +87,6 @@ object Sprite {
         Accessory("flower", "Цветок", null, "days7"),
         Accessory("halo", "Нимб", null, "days30"),
         Accessory("eyepatch", "Пиратская повязка", null, "ball30"),
-    )
-
-    /** Шапки и всё, что на макушке: одновременно носится только одна. */
-    val headAcc = setOf("bow", "party", "crown", "santa", "nightcap", "umbrella", "halo", "flower")
-
-    private val accColors = mapOf(
-        "bow" to (0xFFFF6FA8.toInt() to 0xFFD94C88.toInt()),
-        "party" to (0xFF6FB8FF.toInt() to 0xFFFFC94D.toInt()),
-        "glasses" to (0xFF1A1A1A.toInt() to 0xFF5E6670.toInt()),
-        "phones" to (0xFF3A3A3A.toInt() to 0xFF5E6670.toInt()),
-        "crown" to (0xFFFFC94D.toInt() to 0xFFFF5C7A.toInt()),
-        "santa" to (0xFFE53935.toInt() to 0xFFFFFFFF.toInt()),
-        "nightcap" to (0xFF4A6FD0.toInt() to 0xFFFFFFFF.toInt()),
-        "umbrella" to (0xFFE5534B.toInt() to 0xFF3A3A3A.toInt()),
-        "scarf" to (0xFFE5534B.toInt() to 0xFFFFC94D.toInt()),
-        "flower" to (0xFFFF6FA8.toInt() to 0xFFFFC94D.toInt()),
-        "eyepatch" to (0xFF141414.toInt() to 0xFF141414.toInt()),
-        "halo" to (0xFFFFE08A.toInt() to 0xFFFFC94D.toInt()),
-        "file" to (0xFFFFFFFF.toInt() to 0xFF8FA3BF.toInt()),
     )
 
     val patterns = mapOf(
@@ -141,27 +153,61 @@ object Sprite {
         else -> 0xFFFFFFFF.toInt()
     }
 
+    /** Значки частиц ауры: «aura|значок|цвет» — например aura|star|-16384. */
+    private val auraGlyphs = mapOf(
+        "dot" to listOf("XX", "XX"),
+        "ring" to listOf(".X.", "X.X", ".X."),
+        "oval" to listOf(".X.", "XXX", ".X."),
+        "star" to listOf(".X.", "XXX", ".X."),
+        "spark" to listOf("..X..", "..X..", "XX.XX", "..X..", "..X.."),
+        "note" to listOf("..XXX", "..X.X", "..X.X", "XXX.X", "XXX.."),
+        "money" to listOf(".X.", "XXX", "X..", "XXX", "..X", "XXX", ".X."),
+        "zap" to listOf("..X", ".X.", "XXX", ".X.", "X.."),
+    )
+
+    /** Какой значок у символа ауры с ПК (там это текст). */
+    fun auraGlyph(shape: String, ch: Char?): String = when (shape) {
+        "ring" -> "ring"
+        "oval" -> "oval"
+        "text" -> when (ch) {
+            '♪', '♫' -> "note"
+            '$' -> "money"
+            'ϟ' -> "zap"
+            '✦' -> "spark"
+            else -> "star"
+        }
+        else -> "dot"
+    }
+
     fun patternBitmap(kind: String, s: Int): Bitmap {
-        val rows = patterns.getValue(kind)
+        val aura = kind.startsWith("aura|")
+        val rows = if (aura) auraGlyphs.getValue(kind.split('|')[1]) else patterns.getValue(kind)
+        val auraColor = if (aura) kind.split('|')[2].toInt() else 0
         val bmp = Bitmap.createBitmap(rows[0].length * s, rows.size * s, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
         val paint = Paint()
         for ((y, row) in rows.withIndex()) for ((x, ch) in row.withIndex()) {
             if (ch == '.') continue
-            paint.color = particleColor(kind, ch)
+            paint.color = if (aura) auraColor else particleColor(kind, ch)
             canvas.drawRect((x * s).toFloat(), (y * s).toFloat(), ((x + 1) * s).toFloat(), ((y + 1) * s).toFloat(), paint)
         }
         return bmp
     }
 
+    /**
+     * Кадр 18×13 клеток плюс одинаковый запас pad со всех сторон под высокие шапки, крылья и вещи в лапе
+     * (pad = Wardrobe.pad(p.acc); без одежды — 0, кадр как раньше).
+     */
     fun render(p: Pose, s: Int, body: Int, eye: Int): Bitmap {
-        val bmp = Bitmap.createBitmap(GRID_W * s, GRID_H * s, Bitmap.Config.ARGB_8888)
+        val pad = Wardrobe.pad(p.acc)
+        val bmp = Bitmap.createBitmap((GRID_W + 2 * pad) * s, (GRID_H + 2 * pad) * s, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
         val paint = Paint()
         fun px(x0: Int, y0: Int, x1: Int, y1: Int, color: Int) {
             paint.color = color
-            canvas.drawRect((x0 * s).toFloat(), (y0 * s).toFloat(), (x1 * s).toFloat(), (y1 * s).toFloat(), paint)
+            canvas.drawRect(((x0 + pad) * s).toFloat(), ((y0 + pad) * s).toFloat(), ((x1 + pad) * s).toFloat(), ((y1 + pad) * s).toFloat(), paint)
         }
+        val worn = p.acc?.split(',').orEmpty()
 
         val blushColor = mix(body, 0xFFFF4F79.toInt(), 0.5f)
         var left = 3
@@ -185,6 +231,9 @@ object Sprite {
             "tuck" -> intArrayOf(1, 1, 1, 1)
             else -> intArrayOf(2, 2, 2, 2)
         }
+        val ey = top + 2
+        // крылья, плащ, хвост — за телом
+        Wardrobe.draw(::px, worn, "back", left, right, top, bottom, ey, p.look, body, eye)
         val cols = intArrayOf(left + 1, left + 3, right - 4, right - 2)
         for (i in 0..3) px(cols[i], bottom, cols[i] + 1, bottom + heights[i], body)
 
@@ -212,8 +261,8 @@ object Sprite {
         arm(1, rightArm)
 
         px(left, top, right, bottom, body)
+        Wardrobe.draw(::px, worn, "pattern", left, right, top, bottom, ey, p.look, body, eye)
 
-        val ey = top + 2
         for ((side, cx) in listOf(-1 to left + 3 + p.look, 1 to right - 4 + p.look)) {
             when (p.eyes) {
                 "blink" -> px(cx, ey + 1, cx + 1, ey + 2, eye)
@@ -245,112 +294,24 @@ object Sprite {
             }
         }
 
-        // аксессуары через запятую: например «nightcap,scarf»
-        p.acc?.split(',')?.forEach { drawAccessory(::px, it, left, right, top, ey, p.look) }
-
         if (p.mouth.isNotEmpty()) {
             val mx = (left + right) / 2
             val my = ey + 2
             if (p.mouth == "open") px(mx - 1, my, mx + 1, maxOf(my + 1, minOf(my + 2, bottom)), eye)
             else px(mx - 1, my, mx + 1, my + 1, eye)
         }
+        // одежда через запятую: например «tophat,round,scarf»; в поднятой лапе вещь не держит
+        val carry = "file" in worn
+        Wardrobe.draw(::px, worn, "front", left, right, top, bottom, ey, p.look, body, eye, handsFree = !carry && rightArm != "up")
+        if (carry) drawFile(::px, left, right, top)
         return bmp
     }
 
-    private fun drawAccessory(
-        px: (Int, Int, Int, Int, Int) -> Unit, acc: String, left: Int, right: Int, top: Int, ey: Int, look: Int,
-    ) {
-        val (main, extra) = accColors[acc] ?: return
+    /** Не из гардероба: листок с файлом над головой (руки подняты). */
+    private fun drawFile(px: (Int, Int, Int, Int, Int) -> Unit, left: Int, right: Int, top: Int) {
         val mx = (left + right) / 2
-        when (acc) {
-            "bow" -> {
-                val x0 = right - 5
-                px(x0, top - 2, x0 + 1, top - 1, main)
-                px(x0 + 3, top - 2, x0 + 4, top - 1, main)
-                px(x0, top - 1, x0 + 4, top, main)
-                px(x0 + 1, top - 1, x0 + 3, top, extra)
-            }
-            "party" -> {
-                px(mx - 2, top - 1, mx + 2, top, main)
-                px(mx - 1, top - 2, mx + 1, top - 1, extra)
-                if (top >= 3) px(mx - 1, top - 3, mx + 1, top - 2, 0xFFFFFFFF.toInt())
-            }
-            "crown" -> {
-                px(left + 3, top - 1, right - 3, top, main)
-                px(left + 3, top - 2, left + 4, top - 1, main)
-                px(mx - 1, top - 2, mx + 1, top - 1, main)
-                px(right - 4, top - 2, right - 3, top - 1, main)
-                px(mx - 1, top - 1, mx + 1, top, extra)
-            }
-            "santa" -> {
-                px(left + 1, top - 1, right - 1, top, extra)
-                px(left + 3, top - 2, right - 3, top - 1, main)
-                px(right - 3, top - 2, right - 1, top - 1, extra)
-            }
-            "phones" -> {
-                px(left + 1, top - 1, right - 1, top, main)
-                px(left - 1, top + 1, left + 1, top + 4, extra)
-                px(right - 1, top + 1, right + 1, top + 4, extra)
-            }
-            "nightcap" -> {
-                px(left + 2, top - 1, right - 2, top, main)
-                px(left + 4, top - 2, right - 3, top - 1, main)
-                px(right - 4, top - 3, right - 2, top - 2, main)
-                px(right - 2, top - 3, right - 1, top - 2, extra)
-                px(left + 2, top - 1, left + 3, top, extra)
-            }
-            "umbrella" -> {
-                px(left + 2, top - 3, right - 2, top - 2, main)
-                px(left - 1, top - 2, right + 1, top - 1, main)
-                px(left + 3, top - 2, left + 4, top - 1, 0xFFFFFFFF.toInt())
-                px(right - 4, top - 2, right - 3, top - 1, 0xFFFFFFFF.toInt())
-                px(mx, top - 1, mx + 1, top, extra)
-            }
-            "scarf" -> {
-                px(left, top + 5, right, top + 6, main)
-                var cx = left + 1
-                while (cx < right) {
-                    px(cx, top + 5, cx + 1, top + 6, extra)
-                    cx += 3
-                }
-                px(right - 3, top + 6, right - 2, top + 8, main)
-                px(right - 2, top + 6, right - 1, top + 7, extra)
-            }
-            "flower" -> {
-                px(right - 2, top - 2, right - 1, top - 1, main)
-                px(right - 3, top - 1, right - 2, top, main)
-                px(right - 1, top - 1, right, top, main)
-                px(right - 2, top, right - 1, top + 1, main)
-                px(right - 2, top - 1, right - 1, top, extra)
-            }
-            "eyepatch" -> {
-                val rcx = right - 4 + look
-                px(rcx - 1, ey - 1, rcx + 2, ey + 2, main)
-                if (rcx - 1 > left) px(left, ey - 1, rcx - 1, ey, main)
-                if (right > rcx + 2) px(rcx + 2, ey - 1, right, ey, main)
-            }
-            "halo" -> {
-                px(mx - 3, top - 3, mx + 3, top - 2, main)
-                px(mx - 4, top - 2, mx - 3, top - 1, extra)
-                px(mx + 3, top - 2, mx + 4, top - 1, extra)
-            }
-            "file" -> {
-                // держит файл над головой (руки подняты)
-                px(mx - 2, top - 3, mx + 2, top, main)
-                px(mx - 1, top - 2, mx + 1, top - 1, extra)
-            }
-            "glasses" -> {
-                val lcx = left + 3 + look
-                val rcx = right - 4 + look
-                for (cx in intArrayOf(lcx, rcx)) {
-                    px(cx - 1, ey, cx + 2, ey + 2, main)
-                    px(cx - 1, ey, cx, ey + 1, extra)
-                }
-                if (rcx - 1 > lcx + 2) px(lcx + 2, ey, rcx - 1, ey + 1, main)
-                if (lcx - 1 > left) px(left, ey, lcx - 1, ey + 1, main)
-                if (right > rcx + 2) px(rcx + 2, ey, right, ey + 1, main)
-            }
-        }
+        px(mx - 2, top - 3, mx + 2, top, 0xFFFFFFFF.toInt())
+        px(mx - 1, top - 2, mx + 1, top - 1, 0xFF8FA3BF.toInt())
     }
 
     private fun mix(a: Int, b: Int, t: Float): Int {
