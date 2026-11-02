@@ -23,6 +23,7 @@ class WardrobeView(context: Context, private val prefs: Prefs) : ScrollView(cont
     private val count = TextView(context)
     private val tabs = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
     private val grid = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
+    private val styleRow = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
     private var slot = "head"
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).roundToInt()
@@ -46,6 +47,7 @@ class WardrobeView(context: Context, private val prefs: Prefs) : ScrollView(cont
             addView(tabs)
         })
         col.addView(View(context), LinearLayout.LayoutParams(-1, dp(10)))
+        col.addView(styleRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(10) })
         col.addView(grid)
         val buttons = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
         buttons.addView(button("🎲 Случайный образ", true) { randomOutfit() }, LinearLayout.LayoutParams(0, dp(52), 1f))
@@ -106,6 +108,29 @@ class WardrobeView(context: Context, private val prefs: Prefs) : ScrollView(cont
             }, LinearLayout.LayoutParams(-2, -2).apply { marginEnd = dp(6) })
         }
 
+        // во вкладке «Аура» — как она выглядит: свечение, частицы или всё вместе
+        styleRow.removeAllViews()
+        styleRow.visibility = if (slot == "aura") View.VISIBLE else View.GONE
+        val style = prefs.i("aura_style")
+        Wardrobe.AURA_STYLES.forEachIndexed { i, name ->
+            val on = i == style
+            val d = resources.displayMetrics.density
+            styleRow.addView(TextView(context).apply {
+                text = name
+                textSize = 12f
+                typeface = Typeface.DEFAULT_BOLD
+                gravity = Gravity.CENTER
+                setTextColor(if (on) 0xFF1A0F0A.toInt() else t.sub)
+                setPadding(dp(6), dp(10), dp(6), dp(10))
+                background = PixelDrawable(if (on) t.accent2 else t.cell, if (on) null else t.divider, null, step = 3 * d, bw = 2 * d)
+                setOnClickListener {
+                    prefs.put("aura_style", i)
+                    toast(name)
+                    refresh()
+                }
+            }, LinearLayout.LayoutParams(0, -2, 1f).apply { if (i < 2) marginEnd = dp(6) })
+        }
+
         grid.removeAllViews()
         // сначала открытые, потом то, что откроется раньше
         val rank = { it: WItem -> if (it.key in open) -1 else (it.need as? Int) ?: 99 }
@@ -116,13 +141,13 @@ class WardrobeView(context: Context, private val prefs: Prefs) : ScrollView(cont
             for (i in 0 until 3) {
                 val it = rowItems.getOrNull(i)
                 val lp = LinearLayout.LayoutParams(0, -2, 1f).apply { if (i < 2) marginEnd = dp(8) }
-                row.addView(if (it == null) View(context) else cell(it, it.key in open, color), lp)
+                row.addView(if (it == null) View(context) else cell(it, it.key in open, color, style), lp)
             }
             grid.addView(row, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) })
         }
     }
 
-    private fun cell(it: WItem, open: Boolean, color: PetColors): View {
+    private fun cell(it: WItem, open: Boolean, color: PetColors, style: Int): View {
         val on = prefs.s(Wardrobe.pref(it.slot)) == it.key
         val d = resources.displayMetrics.density
         return LinearLayout(context).apply {
@@ -131,7 +156,7 @@ class WardrobeView(context: Context, private val prefs: Prefs) : ScrollView(cont
             setPadding(dp(4), dp(6), dp(4), dp(8))
             background = PixelDrawable(if (on) 0xFF2B1F19.toInt() else t.cell, if (on) t.accent2 else t.divider, null,
                 step = 3 * d, bw = (if (on) 3 else 1) * d)
-            addView(ItemPreview(context, it, color, open), LinearLayout.LayoutParams(-1, dp(72)))
+            addView(ItemPreview(context, it, color, open, style), LinearLayout.LayoutParams(-1, dp(72)))
             addView(TextView(context).apply {
                 text = it.name
                 textSize = 12f
@@ -179,20 +204,22 @@ class WardrobeView(context: Context, private val prefs: Prefs) : ScrollView(cont
 
 /** Картинка вещи: Clawd в ней (для ауры — Clawd в облаке частиц), закрытая — тёмная. */
 @SuppressLint("ViewConstructor")
-private class ItemPreview(context: Context, private val item: WItem, private val color: PetColors, private val open: Boolean) :
-    View(context) {
+private class ItemPreview(
+    context: Context, private val item: WItem, private val color: PetColors, private val open: Boolean, private val auraStyle: Int,
+) : View(context) {
     private val dim = Paint().apply { alpha = 90 }
 
     override fun onDraw(canvas: Canvas) {
         val unit = maxOf(2, (3 * resources.displayMetrics.density).roundToInt())
-        val acc = if (item.slot == "aura") null else item.key
+        // «только частицы» — без свечения, «только свечение» — без частиц
+        val acc = if (item.slot == "aura" && auraStyle == 1) null else item.key
         val bmp = Sprite.render(Pose(acc = acc), unit, color.body, color.eye)
         val s = minOf(1f, width.toFloat() / bmp.width, height.toFloat() / bmp.height)
         canvas.save()
         canvas.translate(width / 2f, height / 2f)
         canvas.scale(s, s)
         val a = item.aura
-        if (a != null) {
+        if (a != null && auraStyle != 2) {
             val spots = listOf(-1.1f to -0.6f, 1.0f to -0.8f, -0.9f to 0.3f, 1.1f to 0.2f, 0f to -1.1f, -1.3f to -0.2f)
             spots.forEachIndexed { i, (fx, fy) ->
                 val c = if (a.colors.isNotEmpty()) a.colors[i % a.colors.size] else 0xFFFF5C7A.toInt()

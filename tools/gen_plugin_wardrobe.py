@@ -116,8 +116,45 @@ def w_pad(acc):
             for look in (-1, 0, 1):
                 for phase in ("back", "pattern", "front"):
                     w_draw(px, keys, phase, l, r, t, bt, t + 2, look, 0xFF000000, 0xFF000000)
-        _W_PAD[acc] = max(0, -b[0], -b[1], b[2] - GRID_W, b[3] - GRID_H)
+        # свечение ауры выходит за всё надетое ещё на W_GLOW клеток
+        g = W_GLOW if w_aura_of(keys) else 0
+        _W_PAD[acc] = max(0, g - b[0], g - b[1], b[2] + g - GRID_W, b[3] + g - GRID_H)
     return _W_PAD[acc]
+
+
+W_GLOW = 3  # на сколько клеток свечение ауры выходит за силуэт
+
+
+def w_aura_of(keys):
+    return next((W_ITEMS[k]["aura"] for k in keys if k in W_ITEMS and W_ITEMS[k]["aura"]), None)
+
+
+def w_glow(px, cells, keys, phase):
+    """Свечение ауры вокруг силуэта: три кольца — сплошное, «рябью», искрами (как clawd_wardrobe.glow)."""
+    aura = w_aura_of(keys)
+    if aura is None or not cells:
+        return
+    cols = aura["colors"] or [0xFFFF6FA8, 0xFFFF9FC0]
+    n = len(cols)
+    xs = [x for x, _ in cells]
+    ys = [y for _, y in cells]
+    taken = set(cells)
+    for x in range(min(xs), max(xs) + 1):
+        for y in range(min(ys), max(ys) + 1):
+            if (x, y) not in cells and (((x - 1, y) in cells and (x + 1, y) in cells) or
+                                        ((x, y - 1) in cells and (x, y + 1) in cells)):
+                taken.add((x, y))
+    ring = set(taken)
+    for k in range(W_GLOW):
+        ring = {(x + dx, y + dy) for x, y in ring for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))} - taken
+        taken |= ring
+        color = cols[(k + phase) % n] if n >= 4 else cols[max(0, n - 1 - k)]
+        for x, y in ring:
+            if k == 1 and (x + y + phase) % 2:
+                continue
+            if k == 2 and (x + 2 * y + phase) % 4:
+                continue
+            px(x, y, x + 1, y + 1, color)
 
 
 # значки частиц ауры (на ПК это текст)

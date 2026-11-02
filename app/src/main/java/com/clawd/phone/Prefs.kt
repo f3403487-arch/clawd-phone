@@ -45,6 +45,7 @@ class Prefs(context: Context) {
             "w_tried" to "",
             "w_migrated" to false,
             "tried_count" to 0,
+            "aura_style" to 0,  // 0 — свечение + частицы, 1 — только частицы (как было), 2 — только свечение
             "hunger" to true,
             "buddy" to true,
             "buddy_name" to "Клодик",

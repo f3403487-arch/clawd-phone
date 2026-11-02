@@ -18,8 +18,8 @@ android {
         applicationId = "com.clawd.phone"
         minSdk = 29
         targetSdk = 34
-        versionCode = 19
-        versionName = "4.6.1"
+        versionCode = 21
+        versionName = "4.7.1"
     }
 
     signingConfigs {

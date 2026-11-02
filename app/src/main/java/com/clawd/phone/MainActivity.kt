@@ -442,12 +442,13 @@ class PreviewView(context: Context, private val prefs: Prefs) : View(context) {
     override fun onDraw(canvas: Canvas) {
         val t = SystemClock.uptimeMillis() - start
         val inPhase = t % 3000
-        val acc = PetService.accessoryFor(context, prefs)
+        val acc = Wardrobe.spriteAcc(PetService.accessoryFor(context, prefs), prefs)
+        val glow = if (acc != null && Wardrobe.auraOf(acc.split(',')) != null) ((t / 166) % 4).toInt() else 0
         val pose = when ((t / 3000) % 4) {
-            0L -> Pose(eyes = if (inPhase in 2000L..2150L) "blink" else "open", acc = acc)
-            1L -> Pose(eyes = "happy", arms = if ((t / 250) % 2 == 0L) "wave1" else "wave2", mouth = "line", acc = acc)
-            2L -> Pose(look = if ((t / 700) % 2 == 0L) -1 else 1, acc = acc)
-            else -> Pose(legs = if ((t / 150) % 2 == 0L) "walk1" else "walk2", look = 1, acc = acc)
+            0L -> Pose(eyes = if (inPhase in 2000L..2150L) "blink" else "open", acc = acc, glow = glow)
+            1L -> Pose(eyes = "happy", arms = if ((t / 250) % 2 == 0L) "wave1" else "wave2", mouth = "line", acc = acc, glow = glow)
+            2L -> Pose(look = if ((t / 700) % 2 == 0L) -1 else 1, acc = acc, glow = glow)
+            else -> Pose(legs = if ((t / 150) % 2 == 0L) "walk1" else "walk2", look = 1, acc = acc, glow = glow)
         }
         val bmp = sprites.get(pose, unit, PetService.colorFor(prefs))
         // в высокой шляпе или с крыльями кадр больше — ужимаем, чтобы влез целиком

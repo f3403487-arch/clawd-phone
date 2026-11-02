@@ -17,6 +17,8 @@ data class Pose(
     val blush: Boolean = false,
     val mouth: String = "",
     val acc: String? = null,
+    /** Фаза свечения ауры 0..3 (если аура надета). */
+    val glow: Int = 0,
 )
 
 class PetColors(val name: String, val body: Int, val eye: Int)
@@ -203,11 +205,17 @@ object Sprite {
         val bmp = Bitmap.createBitmap((GRID_W + 2 * pad) * s, (GRID_H + 2 * pad) * s, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
         val paint = Paint()
-        fun px(x0: Int, y0: Int, x1: Int, y1: Int, color: Int) {
+        val worn = p.acc?.split(',').orEmpty()
+        // силуэт копим, только если надета аура: вокруг него она светится
+        val cells = if (Wardrobe.auraOf(worn) != null) HashSet<Int>() else null
+        fun draw(x0: Int, y0: Int, x1: Int, y1: Int, color: Int) {
             paint.color = color
             canvas.drawRect(((x0 + pad) * s).toFloat(), ((y0 + pad) * s).toFloat(), ((x1 + pad) * s).toFloat(), ((y1 + pad) * s).toFloat(), paint)
         }
-        val worn = p.acc?.split(',').orEmpty()
+        fun px(x0: Int, y0: Int, x1: Int, y1: Int, color: Int) {
+            if (cells != null) for (x in x0 until x1) for (y in y0 until y1) cells.add(Wardrobe.cellKey(x, y))
+            draw(x0, y0, x1, y1, color)
+        }
 
         val blushColor = mix(body, 0xFFFF4F79.toInt(), 0.5f)
         var left = 3
@@ -304,6 +312,7 @@ object Sprite {
         val carry = "file" in worn
         Wardrobe.draw(::px, worn, "front", left, right, top, bottom, ey, p.look, body, eye, handsFree = !carry && rightArm != "up")
         if (carry) drawFile(::px, left, right, top)
+        if (cells != null) Wardrobe.glow(::draw, cells, worn, p.glow)
         return bmp
     }
 
@@ -336,7 +345,7 @@ class SpriteCache {
             key = k
         }
         frames[pose]?.let { return it }
-        if (frames.size >= 64) frames.remove(frames.keys.first())
+        if (frames.size >= 160) frames.remove(frames.keys.first())  // с аурой у каждой позы 4 фазы свечения
         val c = Sprite.colors.getOrElse(color) { Sprite.colors[0] }
         return Sprite.render(pose, unit, c.body, c.eye).also { frames[pose] = it }
     }

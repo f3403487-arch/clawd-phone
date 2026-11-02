@@ -3384,7 +3384,10 @@ class PetService : Service(), SensorEventListener, SharedPreferences.OnSharedPre
             else if (now < chewUntil && beat(now, 6.0)) mouth = "chew"
         }
         if (now < blushUntil) blush = true
-        val next = Pose(eyes, look, arms, legs, squash, blush, mouth, outfit())
+        val acc = Wardrobe.spriteAcc(outfit(), prefs)
+        // аура переливается: 4 фазы, ~6 раз в секунду
+        val glow = if (acc != null && Wardrobe.auraOf(acc.split(',')) != null) ((now / 166) % 4).toInt() else 0
+        val next = Pose(eyes, look, arms, legs, squash, blush, mouth, acc, glow)
         if (next != pose) {
             pose = next
             petView.bitmap = sprites.get(next, unit, colorIdx)
@@ -3750,7 +3753,7 @@ class PetService : Service(), SensorEventListener, SharedPreferences.OnSharedPre
     /** Всё, что на Clawd сейчас: гардероб + погода, ночь, учёба, файл в руках (они важнее выбранного в слоте). */
     private fun outfit(): String? {
         val wear = LinkedHashMap<String, String>()
-        accKey?.split(',')?.forEach { k -> Wardrobe.items[k]?.let { if (it.slot != "aura") wear[it.slot] = k } }
+        accKey?.split(',')?.forEach { k -> Wardrobe.items[k]?.let { wear[it.slot] = k } }
         val w = weatherNow?.kind
         when {
             w == "rain" -> wear["head"] = "umbrella"
@@ -3768,7 +3771,7 @@ class PetService : Service(), SensorEventListener, SharedPreferences.OnSharedPre
 
     /** Аура из гардероба: частицы вокруг Clawd, чаще — когда он бегает или летит. */
     private fun auraTick(now: Long) {
-        if (!shown || merged || now < nextAura) return
+        if (!shown || merged || now < nextAura || prefs.i("aura_style") == 2) return
         val a = accKey?.split(',')?.firstNotNullOfOrNull { Wardrobe.items[it]?.aura } ?: return
         val moving = mode == Mode.WALK || mode == Mode.AIR || mode == Mode.DRAG || hopActive
         nextAura = now + (a.every * 1000 * rnd(0.6f, 1.4f) * (if (moving) 0.6f else 1f)).toLong()

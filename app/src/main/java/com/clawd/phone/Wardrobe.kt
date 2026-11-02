@@ -180,6 +180,66 @@ object Wardrobe {
         }
     }
 
+    /** На сколько клеток свечение ауры выходит за силуэт. */
+    const val GLOW = 3
+
+    fun auraOf(keys: List<String>): WAura? = keys.firstNotNullOfOrNull { items[it]?.aura }
+
+    private fun cell(x: Int, y: Int) = (x + 100) * 1000 + (y + 100)
+
+    /**
+     * Свечение ауры вокруг силуэта (cells — занятые клетки, ключи cell(x, y)): три кольца — сплошное,
+     * «рябью» и редкими искрами; phase 0..3 двигает рябь, у многоцветных аур цвета бегут по кругу.
+     * Щели в одну клетку (между ножками) — часть силуэта, их не заливаем. Как clawd_wardrobe.glow на ПК.
+     */
+    fun glow(px: (Int, Int, Int, Int, Int) -> Unit, cells: Set<Int>, keys: List<String>, phase: Int) {
+        val aura = auraOf(keys) ?: return
+        if (cells.isEmpty()) return
+        val cols = if (aura.colors.isNotEmpty()) aura.colors else intArrayOf(0xFFFF6FA8.toInt(), 0xFFFF9FC0.toInt())
+        val n = cols.size
+        val xs = cells.map { it / 1000 - 100 }
+        val ys = cells.map { it % 1000 - 100 }
+        val taken = HashSet(cells)
+        for (x in xs.min()..xs.max()) for (y in ys.min()..ys.max()) {
+            if (cell(x, y) in cells) continue
+            if ((cell(x - 1, y) in cells && cell(x + 1, y) in cells) || (cell(x, y - 1) in cells && cell(x, y + 1) in cells)) {
+                taken.add(cell(x, y))
+            }
+        }
+        var ring: Set<Int> = HashSet(taken)
+        for (k in 0 until GLOW) {
+            val next = HashSet<Int>()
+            for (c in ring) {
+                val x = c / 1000 - 100
+                val y = c % 1000 - 100
+                for ((dx, dy) in listOf(1 to 0, -1 to 0, 0 to 1, 0 to -1)) {
+                    val nc = cell(x + dx, y + dy)
+                    if (nc !in taken) next.add(nc)
+                }
+            }
+            taken.addAll(next)
+            ring = next
+            val color = if (n >= 4) cols[(k + phase) % n] else cols[maxOf(0, n - 1 - k)]
+            for (c in ring) {
+                val x = c / 1000 - 100
+                val y = c % 1000 - 100
+                if (k == 1 && (x + y + phase) % 2 != 0) continue
+                if (k == 2 && Math.floorMod(x + 2 * y + phase, 4) != 0) continue
+                px(x, y, x + 1, y + 1, color)
+            }
+        }
+    }
+
+    /** Ключ клетки для glow(): так рисовалка спрайта копит силуэт. */
+    fun cellKey(x: Int, y: Int) = cell(x, y)
+
+    val AURA_STYLES = listOf("✨ Свечение + частицы", "Только частицы", "Только свечение")
+
+    /** Что рисовать в кадре: при «только частицы» аура не светится вокруг тела. */
+    fun spriteAcc(acc: String?, prefs: Prefs): String? =
+        if (acc == null || prefs.i("aura_style") != 1) acc
+        else acc.split(',').filter { items[it]?.slot != "aura" }.joinToString(",").ifEmpty { null }
+
     private val padCache = HashMap<String, Int>()
 
     /**
@@ -203,7 +263,9 @@ object Wardrobe {
                     draw(px, keys, phase, l, r, t, b, t + 2, look, 0, 0)
                 }
             }
-            maxOf(0, -minX, -minY, maxX - Sprite.GRID_W, maxY - Sprite.GRID_H)
+            // свечение ауры выходит за всё надетое ещё на GLOW клеток
+            val g = if (auraOf(keys) != null) GLOW else 0
+            maxOf(0, g - minX, g - minY, maxX + g - Sprite.GRID_W, maxY + g - Sprite.GRID_H)
         }
     }
 }
