@@ -111,6 +111,7 @@ class ClawdAccess : AccessibilityService() {
     }
 
     /** Видимые элементы активного окна (кэш на 400 мс — события сыплются пачками). */
+    @Synchronized
     fun nodes(): List<UiNode> {
         val now = SystemClock.uptimeMillis()
         cache?.let { if (now - cacheAt < 400) return it }

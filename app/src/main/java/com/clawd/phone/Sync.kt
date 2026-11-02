@@ -129,7 +129,7 @@ object SyncServer {
             path == "/ping" -> "200 OK" to JSONObject().put("ok", true).put("app", "clawd").put("sync", prefs.b("sync"))
             path == "/event" && method == "POST" -> {
                 val type = obj.optString("type")
-                val name = obj.optString("name").take(60)
+                val name = obj.optString("name").take(120)
                 PetService.instance?.let { pet -> android.os.Handler(android.os.Looper.getMainLooper()).post { pet.onExternalEvent(type, name) } }
                 "200 OK" to JSONObject().put("ok", true)
             }

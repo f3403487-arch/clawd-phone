@@ -250,8 +250,12 @@ class PetService : Service(), SensorEventListener, SharedPreferences.OnSharedPre
     private var lookDir = 0
     private var targetX = 0f
     private var plat: Plat? = null
+    @Volatile
     private var platCache: List<Plat>? = null
+    @Volatile
     private var platCacheAt = 0L
+    @Volatile
+    private var platBusy = false
     private var platMoving = false
     private var nextSupportCheck = 0L
     private var pose: Pose? = null
@@ -801,7 +805,7 @@ class PetService : Service(), SensorEventListener, SharedPreferences.OnSharedPre
         slideV = 0f
         hopActive = false
         hopOff = 0f
-        platCache = null
+        platCache = null; platCacheAt = 0L
         restoreEaten()
         hideSuggestions()
         petView.angle = angle()
@@ -1100,6 +1104,7 @@ class PetService : Service(), SensorEventListener, SharedPreferences.OnSharedPre
         weatherTick(now)
         remindersTick()
         pomoTick()
+        if (gravityOn && rot == 0) platforms(now)
         updateHome()
         if (slowCount % 12 == 0 && brain.dirty) ioExec.execute { brain.save() }
         // экранное время
@@ -1168,7 +1173,7 @@ class PetService : Service(), SensorEventListener, SharedPreferences.OnSharedPre
             lookDir = d
             val speed = dp(42f) * when {
                 now < panicUntil -> 3.2f
-                playing -> 2.4f
+                playing -> 3.6f
                 energy < 20f -> 0.7f
                 else -> 1f
             }
@@ -1313,7 +1318,6 @@ class PetService : Service(), SensorEventListener, SharedPreferences.OnSharedPre
     private fun fall(vx0: Float) {
         mode = Mode.AIR
         plat = null
-        platCache = null
         vx = vx0 + slideV
         vy = 0f
         slideV = 0f
@@ -1360,7 +1364,9 @@ class PetService : Service(), SensorEventListener, SharedPreferences.OnSharedPre
         val oldY = y
         x += vx * dt
         y += vy * dt
-        if (gravityOn) {
+        if (ballLeap && ballView == null) ballLeap = false
+        val grav = gravityOn || ballLeap
+        if (grav) {
             vy += dp(2600f) * dt
             vx *= kotlin.math.exp(-0.35f * dt)
             vx += tiltAccel() * dt
@@ -1394,9 +1400,9 @@ class PetService : Service(), SensorEventListener, SharedPreferences.OnSharedPre
         } else if (y > maxY) {
             y = maxY
             impact = max(impact, abs(vy))
-            if (gravityOn && vy < dp(380f)) land(now, null) else {
-                vy = -abs(vy) * (if (gravityOn) 0.42f else 0.55f)
-                if (gravityOn) vx *= 0.75f
+            if (grav && vy < dp(380f)) land(now, null) else {
+                vy = -abs(vy) * (if (grav) 0.42f else 0.55f)
+                if (grav) vx *= 0.75f
                 squashUntil = now + 100
             }
         }
@@ -1405,11 +1411,12 @@ class PetService : Service(), SensorEventListener, SharedPreferences.OnSharedPre
             say("dizzy")
             haptic(1)
         } else if (impact > dp(900f)) haptic(3)
-        if (mode == Mode.AIR && !gravityOn && hypot(vx, vy) < dp(45f)) land(now, null)
+        if (mode == Mode.AIR && !gravityOn && !ballLeap && hypot(vx, vy) < dp(45f)) land(now, null)
     }
 
     private fun land(now: Long, p: Plat?) {
         mode = Mode.IDLE
+        ballLeap = false
         vx = 0f
         vy = 0f
         plat = p
@@ -1543,7 +1550,26 @@ class PetService : Service(), SensorEventListener, SharedPreferences.OnSharedPre
 
     /** Площадки: элементы интерфейса и клавиатура, на которых можно стоять (нужны спецвозможности). */
     private fun platforms(now: Long): List<Plat> {
-        platCache?.let { if (now - platCacheAt < 250) return it }
+        // обход дерева элементов — это IPC на каждый узел, на главном потоке он подвешивал кадры падения:
+        // считаем в фоне, а в кадре отдаём последний готовый список (пусть чуть устаревший)
+        val cached = platCache
+        if ((cached == null || now - platCacheAt >= 250) && !platBusy) {
+            platBusy = true
+            ioExec.execute {
+                try {
+                    val list = buildPlatforms()
+                    platCache = list
+                    platCacheAt = now()
+                } catch (_: Exception) {
+                } finally {
+                    platBusy = false
+                }
+            }
+        }
+        return cached ?: emptyList()
+    }
+
+    private fun buildPlatforms(): List<Plat> {
         val access = ClawdAccess.instance
         val out = ArrayList<Plat>()
         if (access != null && gravityOn && rot == 0) {
@@ -1559,8 +1585,6 @@ class PetService : Service(), SensorEventListener, SharedPreferences.OnSharedPre
             }
             if (kb != null) out.add(Plat(kb.toFloat(), 0f, screenW.toFloat(), "keyboard", null))
         }
-        platCache = out
-        platCacheAt = now
         return out
     }
 
@@ -1662,7 +1686,7 @@ class PetService : Service(), SensorEventListener, SharedPreferences.OnSharedPre
         kick()
     }
 
-    private fun userName(): String? = prefs.s("brain_name").ifBlank { null }
+    private fun userName(): String? = if (demo) null else prefs.s("brain_name").ifBlank { null }
 
     private fun aiReady() = prefs.b("ai_enabled") && (prefs.s("ai_key").isNotBlank() || prefs.s("ai2_url").isNotBlank())
 
@@ -1699,6 +1723,11 @@ class PetService : Service(), SensorEventListener, SharedPreferences.OnSharedPre
 
     /** Сказать реплику: через ИИ, если он включён, иначе заготовленную. */
     private fun say(category: String, force: Boolean = false, name: String? = null, ctx: Map<String, String?> = emptyMap()) {
+        // съёмка: только заготовки — ИИ знает имя хозяина из памяти и вставляет его в реплики
+        if (demo) {
+            if (force) sayStatic(category, name)
+            return
+        }
         if (!force && !prefs.b("phrases")) return
         val now = now()
         if (!force && (suggestView != null || now < longBubbleUntil)) return
@@ -2260,7 +2289,7 @@ class PetService : Service(), SensorEventListener, SharedPreferences.OnSharedPre
 
     fun onAccessChanged() {
         handler.post {
-            platCache = null
+            platCacheAt = 0L
             ClawdAccess.instance?.currentPkg?.takeIf { it.isNotEmpty() }?.let { setApp(it) }
         }
     }
@@ -2311,7 +2340,7 @@ class PetService : Service(), SensorEventListener, SharedPreferences.OnSharedPre
     fun onAppChanged(pkg: String) {
         handler.post {
             restoreEaten()
-            platCache = null
+            platCacheAt = 0L
             setApp(pkg)
             val home = ClawdAccess.instance?.isHome(pkg) == true
             val visits = if (prefs.b("brain_enabled") && !home) {
@@ -2362,7 +2391,7 @@ class PetService : Service(), SensorEventListener, SharedPreferences.OnSharedPre
 
     fun onScreenChanged(scrolled: Boolean) {
         handler.post {
-            platCache = null
+            platCacheAt = 0L
             if (scrolled) {
                 restoreEaten()
                 nextSupportCheck = 0L
@@ -3202,6 +3231,7 @@ class PetService : Service(), SensorEventListener, SharedPreferences.OnSharedPre
     }
 
     fun startDuet(force: Boolean = false) {
+        if (demo) return
         if (buddyView == null) {
             if (force) showBubble(if (!prefs.b("buddy")) "Включи дружка в настройках" else "Дружок где-то потерялся…")
             return
@@ -3840,7 +3870,7 @@ class PetService : Service(), SensorEventListener, SharedPreferences.OnSharedPre
     }
 
     private fun weatherTick(now: Long) {
-        if (!prefs.b("weather") || prefs.s("city").isBlank()) {
+        if (demo || !prefs.b("weather") || prefs.s("city").isBlank()) {
             weatherNow = null
             return
         }
@@ -4046,6 +4076,7 @@ class PetService : Service(), SensorEventListener, SharedPreferences.OnSharedPre
     // =====================================================================
 
     private var ballView: ImageView? = null
+    private var ballLeap = false
     private var ballLp: WindowManager.LayoutParams? = null
     private var ballX = 0f
     private var ballY = 0f
@@ -4210,9 +4241,22 @@ class PetService : Service(), SensorEventListener, SharedPreferences.OnSharedPre
             return true
         }
         val tx = (ballCx - petW / 2f).coerceIn(0f, max(0f, maxX))
-        if (abs(tx - x) > dp(8f) || (!gravityOn && abs((ballY + ballSize - petH) - y) > dp(8f))) {
+        // мяч катается по полу: без гравитации Клодик раньше «шёл» к нему по воздуху по диагонали —
+        // теперь спрыгивает на пол дугой и дальше бегает по полу (за подпрыгнувшим мячом вверх не плывёт)
+        if (!gravityOn && y < maxY - petH * 0.5f) {
+            val d = if (tx > x) 1f else -1f
+            lookDir = d.toInt()
+            ballLeap = true
+            mode = Mode.AIR
+            plat = null
+            vx = d * min(abs(tx - x) * 1.2f, dp(700f))
+            vy = -dp(520f)
+            hop(dp(300f))
+            return true
+        }
+        if (abs(tx - x) > dp(8f)) {
             targetX = tx
-            travelY = if (!gravityOn) (ballY + ballSize - petH).coerceIn(minY, maxY) else null
+            travelY = null
             mode = Mode.WALK
         }
         return true
@@ -4569,6 +4613,7 @@ class PetService : Service(), SensorEventListener, SharedPreferences.OnSharedPre
 
     /** События от Clawd на компе: arrive — прибежал к тебе в телефон, leave — убежал обратно на комп. */
     fun onPcEvent(event: String) {
+        if (demo) return
         when (event) {
             "arrive" -> if (pcAway || !shown) {
                 pcAway = false
@@ -4624,6 +4669,10 @@ class PetService : Service(), SensorEventListener, SharedPreferences.OnSharedPre
 
     /** События от других приложений (PhotoSync): несёт файл к компьютеру и возвращается. */
     fun onExternalEvent(type: String, name: String) {
+        if (type == "demo" || (demo && type.startsWith("demo_"))) {
+            onDemo(type, name)
+            return
+        }
         if (!shown) return
         val file = name.ifBlank { "файл" }
         when (type) {
@@ -4651,6 +4700,74 @@ class PetService : Service(), SensorEventListener, SharedPreferences.OnSharedPre
                 setExpr("surprised", 1.2f)
                 showBubble("Тебе прилетел файл «$file»! 📬")
             }
+        }
+        kick()
+    }
+
+    // ---------- демо-режим для съёмки роликов (как /api/action say/clean на компе) ----------
+
+    /** Съёмка: без случайных фраз, погоды (в облачке виден город) и убеганий на комп; гардероб весь открыт. */
+    @Volatile
+    var demo = false
+    private val demoSaved = HashMap<String, String>()
+    private var demoSize = -1
+
+    private fun onDemo(type: String, arg: String) {
+        when (type) {
+            "demo" -> {
+                val on = arg != "off"
+                // наряд хозяина на время съёмки запоминаем и потом возвращаем
+                if (on && !demo) {
+                    demoSaved.clear()
+                    for (slot in Wardrobe.slotKeys) demoSaved["w_$slot"] = prefs.s("w_$slot")
+                    demoSize = prefs.i("size")
+                    prefs.put("size", 2) // в кадре — «Большой»
+                } else if (!on && demo) {
+                    for ((k, v) in demoSaved) prefs.put(k, v)
+                    if (demoSize >= 0) prefs.put("size", demoSize)
+                    demoSize = -1
+                }
+                demo = on
+                Wardrobe.demoAll = demo
+                weatherNow = null
+                if (pcAway) {
+                    pcAway = false
+                    updateVisibility()
+                    notifyUpdate()
+                }
+                accKey = resolveAccessory()
+                pose = null
+            }
+            "demo_say" -> showBubble(arg, long = arg.length > 40)
+            "demo_center" -> {
+                endBall(silent = true)
+                recenter()
+            }
+            "demo_wear" -> {
+                // "head=wizard,hand=wand" — остальные слоты снимаем
+                val want = arg.split(',').mapNotNull { p -> p.split('=').takeIf { it.size == 2 }?.let { it[0].trim() to it[1].trim() } }.toMap()
+                for (slot in Wardrobe.slotKeys) prefs.put("w_$slot", want[slot] ?: "")
+                setExpr("happy", 1f)
+                repeat(2) { spawn("spark") }
+            }
+            "demo_act" -> petAction(arg, "").takeIf { it.isNotEmpty() }?.let { showBubble(it) }
+            "demo_eat" -> {
+                nextEatAt = 0L
+                mode = Mode.IDLE
+                tryEat(now())
+            }
+            "demo_clean" -> {
+                restoreEaten()
+                for (v in poops.toList()) removeWin(v)
+                poops.clear()
+            }
+            "demo_bg" -> {
+                restoreEaten()
+                startActivity(Intent(this, DemoActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).putExtra("off", arg == "off"))
+            }
+            "demo_ask" -> startActivity(Intent(this, AskActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).putExtra("demo_text", arg))
         }
         kick()
     }

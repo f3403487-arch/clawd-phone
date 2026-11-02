@@ -78,8 +78,13 @@ object Wardrobe {
         else -> need in done
     }
 
+    /** Демо-съёмка: все вещи открыты. */
+    @Volatile
+    var demoAll = false
+
     fun isOpen(key: String, done: Set<String>, bond: Float?): Boolean {
         val it = items[key] ?: return false
+        if (demoAll) return true
         if (it.auto || needOpen(it.need, done)) return true
         val b = legacyBond[key] ?: return false
         return bond == null || bond >= b

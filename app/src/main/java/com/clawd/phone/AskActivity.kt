@@ -135,6 +135,16 @@ class AskActivity : Activity() {
             addView(box, LinearLayout.LayoutParams(-1, -2))
         })
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE or WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+        val demoText = intent.getStringExtra("demo_text")
+        if (demoText != null) {
+            // съёмка ролика: без клавиатуры (в её подсказках бывает буфер обмена) и без кнопок про буфер
+            clipChecked = true
+            input.showSoftInputOnFocus = false
+            window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN)
+            val h = Handler(Looper.getMainLooper())
+            demoText.forEachIndexed { i, _ -> h.postDelayed({ input.setText(demoText.take(i + 1)); input.setSelection(i + 1) }, 500L + i * 75L) }
+            return
+        }
         input.requestFocus()
         if (intent.getBooleanExtra("voice", false)) listen()
     }
