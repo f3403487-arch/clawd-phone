@@ -1,6 +1,13 @@
-﻿plugins {
+import java.util.Properties
+
+plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+}
+
+// ключ подписи лежит вне репозитория: keystore.properties (storeFile, storePassword, keyAlias, keyPassword)
+val keyProps = Properties().apply {
+    rootProject.file("keystore.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
 }
 
 android {
@@ -11,13 +18,25 @@ android {
         applicationId = "com.clawd.phone"
         minSdk = 29
         targetSdk = 34
-        versionCode = 16
-        versionName = "4.5"
+        versionCode = 17
+        versionName = "4.5.1"
+    }
+
+    signingConfigs {
+        if (!keyProps.isEmpty) {
+            create("release") {
+                storeFile = file(keyProps.getProperty("storeFile"))
+                storePassword = keyProps.getProperty("storePassword")
+                keyAlias = keyProps.getProperty("keyAlias")
+                keyPassword = keyProps.getProperty("keyPassword")
+            }
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
+            if (!keyProps.isEmpty) signingConfig = signingConfigs.getByName("release")
         }
     }
 
