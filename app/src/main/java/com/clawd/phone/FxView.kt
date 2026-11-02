@@ -38,11 +38,6 @@ class FxView(
         const val FADE_IN = 150L
         const val FADE_OUT = 180L
         const val MAX_PARTICLES = 14
-        // стиль Clawd Pixel — как облачко на ПК
-        const val BG = 0xFF211B17.toInt()
-        const val BORDER = 0xFFE0855F.toInt()
-        const val SHADOW = 0xFF0A0807.toInt()
-        const val TEXT = 0xFFF6EDE4.toInt()
         const val POP = 280L
         const val TYPE_CPS = 60f
     }
@@ -83,13 +78,28 @@ class FxView(
     private var bubbleUntil = 0L
     private var appearAt = 0L
     private val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = TEXT
+        color = TgTheme(context).text
         textSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, textDp, resources.displayMetrics)
         typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
     }
-    private val fill = Paint().apply { color = BG }
-    private val stroke = Paint().apply { color = BORDER }
-    private val shade = Paint().apply { color = SHADOW }
+    // облачко в цветах темы оформления — как на ПК
+    private val fill = Paint()
+    private val stroke = Paint()
+    private val shade = Paint()
+
+    init {
+        applyTheme()
+    }
+
+    /** Перекрасить облачко под выбранную тему (тема сменилась в настройках). */
+    fun applyTheme() {
+        val t = TgTheme(context)
+        fill.color = t.cell
+        stroke.color = t.border
+        shade.color = t.shadow
+        textPaint.color = t.text
+        invalidate()
+    }
     private val path = android.graphics.Path()
 
     /** Текст печатается по буквам: держим отдельную раскладку для уже показанной части. */

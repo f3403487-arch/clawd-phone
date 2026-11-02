@@ -77,7 +77,7 @@ class WardrobeView(context: Context, private val prefs: Prefs) : ScrollView(cont
         textSize = 14f
         typeface = Typeface.DEFAULT_BOLD
         gravity = Gravity.CENTER
-        setTextColor(if (main) 0xFF1A0F0A.toInt() else t.accent)
+        setTextColor(if (main) t.onAccent else t.accent)
         val d = resources.displayMetrics.density
         background = PixelDrawable(if (main) t.accent2 else t.cell2, if (main) null else t.divider, t.shadow,
             step = 3 * d, bw = 2 * d, shadowOff = 3 * d)
@@ -90,14 +90,15 @@ class WardrobeView(context: Context, private val prefs: Prefs) : ScrollView(cont
         count.text = "Открыто ${all.count { it.key in open }} из ${all.size}"
 
         tabs.removeAllViews()
-        for ((key, name, icon) in Wardrobe.slots) {
+        // слоты + «Сезонное»: праздничное из всех слотов, по праздникам
+        for ((key, name, icon) in Wardrobe.slots + Triple(SEASONAL, "Сезонное", "🎃")) {
             val on = key == slot
-            val worn = prefs.s(Wardrobe.pref(key)).isNotEmpty()
+            val worn = key != SEASONAL && prefs.s(Wardrobe.pref(key)).isNotEmpty()
             tabs.addView(TextView(context).apply {
                 text = "$icon $name" + if (worn) " •" else ""
                 textSize = 14f
                 typeface = Typeface.DEFAULT_BOLD
-                setTextColor(if (on) 0xFF1A0F0A.toInt() else t.sub)
+                setTextColor(if (on) t.onAccent else t.sub)
                 setPadding(dp(14), dp(10), dp(14), dp(12))
                 val d = resources.displayMetrics.density
                 background = PixelDrawable(if (on) t.accent2 else t.cell, if (on) null else t.divider, null, step = 3 * d, bw = 2 * d)
@@ -120,7 +121,7 @@ class WardrobeView(context: Context, private val prefs: Prefs) : ScrollView(cont
                 textSize = 12f
                 typeface = Typeface.DEFAULT_BOLD
                 gravity = Gravity.CENTER
-                setTextColor(if (on) 0xFF1A0F0A.toInt() else t.sub)
+                setTextColor(if (on) t.onAccent else t.sub)
                 setPadding(dp(6), dp(10), dp(6), dp(10))
                 background = PixelDrawable(if (on) t.accent2 else t.cell, if (on) null else t.divider, null, step = 3 * d, bw = 2 * d)
                 setOnClickListener {
@@ -132,10 +133,41 @@ class WardrobeView(context: Context, private val prefs: Prefs) : ScrollView(cont
         }
 
         grid.removeAllViews()
+        val color = Sprite.colors[PetService.colorFor(prefs)]
+        if (slot == SEASONAL) {
+            grid.addView(sectionTitle("Украшение в уголке Clawd"))
+            val now = Wardrobe.season()?.let { s -> Wardrobe.seasons.firstOrNull { it.first == s }?.second }
+            val choices = listOf<Triple<String, String, WDecor?>>(
+                Triple("auto", "По календарю" + (now?.let { " ($it)" } ?: ""), null),
+                Triple("none", "Без украшения", null),
+            ) + Wardrobe.decors.values.map { Triple(it.key, it.name, it) }
+            for (rowItems in choices.chunked(3)) {
+                val row = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
+                for (i in 0 until 3) {
+                    val c = rowItems.getOrNull(i)
+                    val lp = LinearLayout.LayoutParams(0, -2, 1f).apply { if (i < 2) marginEnd = dp(8) }
+                    row.addView(if (c == null) View(context) else decorCell(c.first, c.second, c.third), lp)
+                }
+                grid.addView(row, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) })
+            }
+            if (!prefs.b("home")) grid.addView(TextView(context).apply {
+                text = "Украшение стоит в уголке Clawd — включи «Свой уголок» во вкладке «Настройки»."
+                textSize = 12f
+                setTextColor(t.sub)
+                setPadding(dp(4), 0, dp(4), dp(6))
+            })
+            for ((season, name, icon) in Wardrobe.seasons) {
+                grid.addView(sectionTitle("$icon $name"))
+                addRows(all.filter { it.season == season }, open, color, style)
+            }
+            return
+        }
         // сначала открытые, потом то, что откроется раньше
         val rank = { it: WItem -> if (it.key in open) -1 else (it.need as? Int) ?: 99 }
-        val list = all.filter { it.slot == slot }.sortedBy(rank)
-        val color = Sprite.colors[PetService.colorFor(prefs)]
+        addRows(all.filter { it.slot == slot }.sortedBy(rank), open, color, style)
+    }
+
+    private fun addRows(list: List<WItem>, open: Set<String>, color: PetColors, style: Int) {
         for (rowItems in list.chunked(3)) {
             val row = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
             for (i in 0 until 3) {
@@ -147,6 +179,48 @@ class WardrobeView(context: Context, private val prefs: Prefs) : ScrollView(cont
         }
     }
 
+    companion object {
+        private const val SEASONAL = "seasonal"
+    }
+
+    private fun sectionTitle(text: String) = TextView(context).apply {
+        this.text = text
+        textSize = 14f
+        typeface = Typeface.DEFAULT_BOLD
+        setTextColor(t.accent)
+        setPadding(dp(4), dp(10), 0, dp(8))
+    }
+
+    /** Карточка украшения: «По календарю», «Без» или само украшение с превью. */
+    private fun decorCell(key: String, name: String, decor: WDecor?): View {
+        val on = prefs.s("decor").ifEmpty { "auto" } == key
+        val d = resources.displayMetrics.density
+        return LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(dp(4), dp(6), dp(4), dp(8))
+            background = PixelDrawable(if (on) t.sel else t.cell, if (on) t.accent2 else t.divider, null,
+                step = 3 * d, bw = (if (on) 3 else 1) * d)
+            addView(if (decor != null) DecorPreview(context, decor) else TextView(context).apply {
+                text = if (key == "auto") "📅" else "🚫"
+                textSize = 30f
+                gravity = Gravity.CENTER
+            }, LinearLayout.LayoutParams(-1, dp(72)))
+            addView(TextView(context).apply {
+                text = name
+                textSize = 12f
+                gravity = Gravity.CENTER
+                setTextColor(t.text)
+                maxLines = 2
+            })
+            setOnClickListener {
+                prefs.put("decor", key)
+                toast(name)
+                refresh()
+            }
+        }
+    }
+
     private fun cell(it: WItem, open: Boolean, color: PetColors, style: Int): View {
         val on = prefs.s(Wardrobe.pref(it.slot)) == it.key
         val d = resources.displayMetrics.density
@@ -154,7 +228,7 @@ class WardrobeView(context: Context, private val prefs: Prefs) : ScrollView(cont
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
             setPadding(dp(4), dp(6), dp(4), dp(8))
-            background = PixelDrawable(if (on) 0xFF2B1F19.toInt() else t.cell, if (on) t.accent2 else t.divider, null,
+            background = PixelDrawable(if (on) t.sel else t.cell, if (on) t.accent2 else t.divider, null,
                 step = 3 * d, bw = (if (on) 3 else 1) * d)
             addView(ItemPreview(context, it, color, open, style), LinearLayout.LayoutParams(-1, dp(72)))
             addView(TextView(context).apply {
@@ -200,6 +274,24 @@ class WardrobeView(context: Context, private val prefs: Prefs) : ScrollView(cont
     }
 
     private fun toast(text: String) = Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
+}
+
+/** Превью украшения — тот же пиксель-арт, что в уголке. */
+@SuppressLint("ViewConstructor")
+private class DecorPreview(context: Context, private val decor: WDecor) : View(context) {
+    private val paint = Paint()
+
+    override fun onDraw(canvas: Canvas) {
+        val rows = decor.rows
+        val p = minOf(height / rows.size.toFloat(), width / rows[0].length.toFloat(), 4 * resources.displayMetrics.density)
+        val x0 = (width - rows[0].length * p) / 2
+        val y0 = (height - rows.size * p) / 2
+        for ((r, row) in rows.withIndex()) for ((c, ch) in row.withIndex()) {
+            if (ch == '.') continue
+            paint.color = if (ch in decor.lights) decor.blink[0] else decor.pal[ch] ?: continue
+            canvas.drawRect(x0 + c * p, y0 + r * p, x0 + (c + 1) * p, y0 + (r + 1) * p, paint)
+        }
+    }
 }
 
 /** Картинка вещи: Clawd в ней (для ауры — Clawd в облаке частиц), закрытая — тёмная. */

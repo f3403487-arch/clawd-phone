@@ -51,7 +51,7 @@ class PetView(context: Context, private val service: PetService) : SpriteView(co
     override fun onTouchEvent(event: MotionEvent) = service.onPetTouch(event)
 }
 
-/** Уголок Clawd: кроватка, миска (с рыбкой, если сыт) и мячик. Тап — по зоне. */
+/** Уголок Clawd: кроватка, миска (с рыбкой, если сыт), мячик и праздничное украшение. Тап — по зоне. */
 @SuppressLint("ViewConstructor")
 class HomeView(context: Context, private val onTap: (String) -> Unit) : View(context) {
     var pixel = 6
@@ -61,15 +61,42 @@ class HomeView(context: Context, private val onTap: (String) -> Unit) : View(con
         }
     var full = false
     var ballHere = true
+
+    /** Украшение справа от мячика (тыква, ёлка…); огоньки на нём мигают. */
+    var decor: WDecor? = null
     private val cache = HashMap<String, Bitmap>()
+    private val paint = android.graphics.Paint()
 
     private fun bmp(kind: String) = cache.getOrPut(kind) { Sprite.patternBitmap(kind, pixel) }
 
+    companion object {
+        /** Ширина уголка без украшения и с ним (в клетках), высота самих кроватки/миски. */
+        const val BASE_W = 34
+        const val BASE_H = 6
+        const val DECOR_GAP = 2
+
+        fun widthFor(decor: WDecor?) = BASE_W + (decor?.let { DECOR_GAP + it.rows[0].length } ?: 0)
+        fun heightFor(decor: WDecor?) = maxOf(BASE_H, decor?.rows?.size ?: 0)
+    }
+
     override fun onDraw(canvas: Canvas) {
         val p = pixel.toFloat()
-        canvas.drawBitmap(bmp("bed"), 0f, 0f, null)
-        canvas.drawBitmap(bmp(if (full) "bowl_full" else "bowl"), 18 * p, 3 * p, null)
-        if (ballHere) canvas.drawBitmap(bmp("ball"), 28 * p, 0f, null)
+        // всё стоит на нижнем краю: украшение может быть выше кроватки
+        val base = (heightFor(decor) - BASE_H) * p
+        canvas.drawBitmap(bmp("bed"), 0f, base, null)
+        canvas.drawBitmap(bmp(if (full) "bowl_full" else "bowl"), 18 * p, base + 3 * p, null)
+        if (ballHere) canvas.drawBitmap(bmp("ball"), 28 * p, base, null)
+        val d = decor ?: return
+        val x0 = (BASE_W + DECOR_GAP) * p
+        val y0 = (heightFor(d) - d.rows.size) * p
+        val step = (android.os.SystemClock.uptimeMillis() / 400).toInt()
+        var light = 0
+        for ((r, row) in d.rows.withIndex()) for ((c, ch) in row.withIndex()) {
+            if (ch == '.') continue
+            paint.color = if (ch in d.lights) d.blink[(step + light++) % d.blink.size] else d.pal[ch] ?: continue
+            canvas.drawRect(x0 + c * p, y0 + r * p, x0 + (c + 1) * p, y0 + (r + 1) * p, paint)
+        }
+        postInvalidateDelayed(400)
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -80,7 +107,8 @@ class HomeView(context: Context, private val onTap: (String) -> Unit) : View(con
                 when {
                     cell < 17 -> "bed"
                     cell < 27 -> "bowl"
-                    else -> "ball"
+                    cell < BASE_W + 1 -> "ball"
+                    else -> "decor"
                 },
             )
         }

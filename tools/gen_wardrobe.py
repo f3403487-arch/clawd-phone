@@ -58,6 +58,8 @@ def item(it):
                     f"{'true' if a.get('fall') else 'false'})")
     if it["auto"]:
         args.append("auto = true")
+    if it.get("season"):
+        args.append("season = " + kstr(it["season"]))
     return "        WItem(" + ", ".join(args) + "),"
 
 
@@ -69,7 +71,8 @@ def main():
     out = ["package com.clawd.phone", "",
            "// СГЕНЕРИРОВАНО tools/gen_wardrobe.py из clawd_wardrobe.py (Clawd для ПК) — правь там, потом перегенерируй.", "",
            "object WardrobeData {",
-           "    val SLOTS = listOf(" + ", ".join(f"Triple({kstr(k)}, {kstr(n)}, {kstr(i)})" for k, n, i in w.SLOTS) + ")", ""]
+           "    val SLOTS = listOf(" + ", ".join(f"Triple({kstr(k)}, {kstr(n)}, {kstr(i)})" for k, n, i in w.SLOTS) + ")",
+           "    val SEASONS = listOf(" + ", ".join(f"Triple({kstr(k)}, {kstr(n)}, {kstr(i)})" for k, n, i in w.SEASONS) + ")", ""]
     # по функции на слот: один огромный список не влезет в метод JVM
     for slot in w.SLOT_KEYS:
         out.append(f"    private fun {slot}() = listOf(")
@@ -77,6 +80,15 @@ def main():
         out.append("    )")
         out.append("")
     out.append("    val ITEMS: Map<String, WItem> = (" + " + ".join(f"{s}()" for s in w.SLOT_KEYS) + ").associateBy { it.key }")
+    out.append("")
+    # праздничные украшения в уголке: «*» и буквы со значением «*» — мигающие огоньки
+    out.append("    val DECORS = listOf(")
+    for key, (rows, colors) in w.DECOR.items():
+        pal = ", ".join(f"'{k}' to {kcolor(v)}" for k, v in colors.items() if v != "*")
+        lights = "*" + "".join(k for k, v in colors.items() if v == "*")
+        out.append(f"        WDecor({kstr(key)}, {kstr(w.DECOR_NAMES[key])}, {klist(rows)}, mapOf({pal}), {kstr(lights)}, "
+                   f"intArrayOf({', '.join(kcolor(c) for c in w.DECOR_LIGHTS[key])})),")
+    out.append("    ).associateBy { it.key }")
     out.append("}")
     dst = Path(__file__).resolve().parent.parent / "app/src/main/java/com/clawd/phone/WardrobeData.kt"
     dst.write_text("\n".join(out) + "\n", encoding="utf-8")

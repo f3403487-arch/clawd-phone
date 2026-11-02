@@ -231,7 +231,8 @@ def item(it):
     return (f"    {it['key']!r}: {{'key': {it['key']!r}, 'slot': {it['slot']!r}, 'name': {it['name']!r}, "
             f"'need': {need(it['need'])}, 'rows': {it['rows']!r}, 'pal': {pal}, 'dx': {it['dx']}, 'dy': {it['dy']}, "
             f"'left': {it['left']!r}, 'right': {it['right']!r}, 'bridge': {[tuple(b) for b in it['bridge']]!r}, "
-            f"'edge': {[tuple(e) for e in it['edge']]!r}, 'aura': {aura}, 'auto': {it['auto']}}},")
+            f"'edge': {[tuple(e) for e in it['edge']]!r}, 'aura': {aura}, 'auto': {it['auto']}, "
+            f"'season': {it.get('season')!r}}},")
 
 
 def main():
@@ -239,7 +240,7 @@ def main():
     w = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(w)
     out = [START + ": СГЕНЕРИРОВАНО gen_plugin_wardrobe.py из clawd_wardrobe.py (Clawd для ПК) — правь там ====",
-           f"W_SLOTS = {w.SLOTS!r}", "W_SLOT_KEYS = [s for s, _, _ in W_SLOTS]", "W_ITEMS = {"]
+           f"W_SLOTS = {w.SLOTS!r}", f"W_SEASONS = {w.SEASONS!r}", "W_SLOT_KEYS = [s for s, _, _ in W_SLOTS]", "W_ITEMS = {"]
     out += [item(it) for it in w.ITEMS.values()]
     out.append("}")
     out.append("# что можно выбрать в каждом слоте (порядок = номер в списке настроек минус 1)")

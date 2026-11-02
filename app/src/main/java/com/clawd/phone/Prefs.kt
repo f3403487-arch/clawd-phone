@@ -45,7 +45,9 @@ class Prefs(context: Context) {
             "w_tried" to "",
             "w_migrated" to false,
             "tried_count" to 0,
-            "aura_style" to 0,  // 0 — свечение + частицы, 1 — только частицы (как было), 2 — только свечение
+            "aura_style" to 0,
+            "decor" to "auto",  // украшение в уголке: auto — по календарю, none — без, или ключ (halloween, newyear…)
+            "ui_theme" to "warm",  // тема оформления: ключ из Themes  // 0 — свечение + частицы, 1 — только частицы (как было), 2 — только свечение
             "hunger" to true,
             "buddy" to true,
             "buddy_name" to "Клодик",

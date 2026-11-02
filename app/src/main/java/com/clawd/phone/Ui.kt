@@ -18,22 +18,65 @@ import android.widget.LinearLayout
 import android.widget.Switch
 import android.widget.TextView
 
-/** Стиль Clawd Pixel (как на ПК): тёплый тёмный фон, рамки и акцент цвета самого Clawd, углы «лесенкой». */
-class TgTheme(@Suppress("UNUSED_PARAMETER") context: Context) {
-    val isDark = true
+/** Цвета одной темы оформления — те же, что THEMES в Clawd на ПК. */
+class ThemeColors(
+    val name: String, val bg: Int, val cell: Int, val cell2: Int, val hover: Int, val line: Int, val shadow: Int,
+    val text: Int, val text2: Int, val sub: Int, val accent: Int, val accent2: Int, val accent3: Int, val onAccent: Int,
+    val border: Int, val red: Int, val sel: Int, val swOn: Int, val dark: Boolean,
+)
 
-    val gray = 0xFF15110E.toInt()
-    val cell = 0xFF211B17.toInt()
-    val cell2 = 0xFF2E241F.toInt()
-    val text = 0xFFF6EDE4.toInt()
-    val sub = 0xFF9B8A7C.toInt()
-    val accent = 0xFFF0A07A.toInt()
-    val accent2 = 0xFFD97757.toInt()
-    val icon = 0xFFB8A698.toInt()
-    val divider = 0xFF3D312A.toInt()
-    val shadow = 0xFF0A0807.toInt()
-    val red = 0xFFC94A3F.toInt()
-    val ripple = 0x33F0A07A
+/** Темы оформления на выбор (Настройки → Тема оформления). */
+object Themes {
+    val ALL = linkedMapOf(
+        "warm" to ThemeColors(
+            "Тёплая", 0xFF15110E.toInt(), 0xFF211B17.toInt(), 0xFF2B231E.toInt(), 0xFF2A221D.toInt(), 0xFF3D312A.toInt(), 0xFF0A0807.toInt(), 0xFFF6EDE4.toInt(), 0xFFD9CABD.toInt(), 0xFF9B8A7C.toInt(), 0xFFF0A07A.toInt(), 0xFFD97757.toInt(), 0xFFD97757.toInt(), 0xFF1A0F0A.toInt(), 0xFFE0855F.toInt(), 0xFFC94A3F.toInt(), 0xFF2B1F19.toInt(), 0xFF3B2419.toInt(), dark = true,
+        ),
+        "ocean" to ThemeColors(
+            "Океан", 0xFF101826.toInt(), 0xFF172234.toInt(), 0xFF1F2D44.toInt(), 0xFF1D2A40.toInt(), 0xFF2C3D5A.toInt(), 0xFF070B12.toInt(), 0xFFEAF0F8.toInt(), 0xFFC9D4E4.toInt(), 0xFF8B9AB3.toInt(), 0xFFFFB38A.toInt(), 0xFFFFB38A.toInt(), 0xFF7FB8FF.toInt(), 0xFF2A1408.toInt(), 0xFF7FB8FF.toInt(), 0xFFEF6A6A.toInt(), 0xFF22324B.toInt(), 0xFF3A2A24.toInt(), dark = true,
+        ),
+        "neon" to ThemeColors(
+            "Неон", 0xFF0E0E12.toInt(), 0xFF17171D.toInt(), 0xFF202028.toInt(), 0xFF1D1D24.toInt(), 0xFF2E2E3A.toInt(), 0xFF000000.toInt(), 0xFFF2F2F5.toInt(), 0xFFD0D0D8.toInt(), 0xFF8D8D99.toInt(), 0xFFE8FF4A.toInt(), 0xFFE8FF4A.toInt(), 0xFFFF4FA0.toInt(), 0xFF14160A.toInt(), 0xFFFF4FA0.toInt(), 0xFFFF4F6A.toInt(), 0xFF26281A.toInt(), 0xFF2A2E12.toInt(), dark = true,
+        ),
+        "forest" to ThemeColors(
+            "Лес", 0xFF0F1A14.toInt(), 0xFF16241C.toInt(), 0xFF1E3026.toInt(), 0xFF1C2C23.toInt(), 0xFF2C4636.toInt(), 0xFF06100A.toInt(), 0xFFE8F2EA.toInt(), 0xFFC8DCCD.toInt(), 0xFF8FA596.toInt(), 0xFF9BE36A.toInt(), 0xFF9BE36A.toInt(), 0xFFF2C14E.toInt(), 0xFF11200A.toInt(), 0xFFF2C14E.toInt(), 0xFFE0664A.toInt(), 0xFF22351F.toInt(), 0xFF26401C.toInt(), dark = true,
+        ),
+        "night" to ThemeColors(
+            "Ночь", 0xFF14111F.toInt(), 0xFF1F1A30.toInt(), 0xFF28213D.toInt(), 0xFF27203A.toInt(), 0xFF3A3154.toInt(), 0xFF0A0812.toInt(), 0xFFEDE9F7.toInt(), 0xFFCFC8E3.toInt(), 0xFF9A92B3.toInt(), 0xFF5EE6B0.toInt(), 0xFF5EE6B0.toInt(), 0xFFB48CFF.toInt(), 0xFF0F1F19.toInt(), 0xFFB48CFF.toInt(), 0xFFE0566A.toInt(), 0xFF1A2B2E.toInt(), 0xFF173A30.toInt(), dark = true,
+        ),
+        "light" to ThemeColors(
+            "Светлая", 0xFFF3EEE6.toInt(), 0xFFFFFFFF.toInt(), 0xFFEFE8DD.toInt(), 0xFFF7F2EA.toInt(), 0xFFDDD2C4.toInt(), 0xFFCFC4B6.toInt(), 0xFF2A2420.toInt(), 0xFF4A413A.toInt(), 0xFF7D7268.toInt(), 0xFFC8603F.toInt(), 0xFFD97757.toInt(), 0xFF4F8FD8.toInt(), 0xFFFFFFFF.toInt(), 0xFFD97757.toInt(), 0xFFC94A3F.toInt(), 0xFFFDEEE6.toInt(), 0xFFF6D3C2.toInt(), dark = false,
+        ),
+    )
+
+    fun of(prefs: Prefs): ThemeColors = ALL[prefs.s("ui_theme")] ?: ALL.getValue("warm")
+}
+
+/** Пиксельный стиль Clawd в цветах выбранной темы: рамки, акценты, углы «лесенкой». */
+class TgTheme(context: Context) {
+    private val c = Themes.of(Prefs(context))
+    val isDark = c.dark
+
+    val gray = c.bg
+    val cell = c.cell
+    val cell2 = c.cell2
+    val text = c.text
+    val sub = c.sub
+    val accent = c.accent
+    val accent2 = c.accent2
+    val accent3 = c.accent3
+    val icon = c.text2
+    val divider = c.line
+    val shadow = c.shadow
+    val red = c.red
+    val border = c.border
+
+    /** Текст на кнопке цвета accent2. */
+    val onAccent = c.onAccent
+
+    /** Фон выбранной карточки и включённого переключателя. */
+    val sel = c.sel
+    val swOn = c.swOn
+    val ripple = (c.accent and 0xFFFFFF) or 0x33000000
 }
 
 /** Плашка с углами «лесенкой», рамкой и жёсткой тенью со сдвигом — как в пиксельных играх. */
@@ -203,7 +246,7 @@ class SettingsBuilder(private val context: Context, private val root: LinearLayo
     private fun tgSwitch() = Switch(context).apply {
         val states = arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf())
         thumbTintList = ColorStateList(states, intArrayOf(t.accent, t.sub))
-        trackTintList = ColorStateList(states, intArrayOf(0xFF6B3A26.toInt(), t.divider))
+        trackTintList = ColorStateList(states, intArrayOf(t.swOn, t.divider))
         isClickable = false
         isFocusable = false
     }

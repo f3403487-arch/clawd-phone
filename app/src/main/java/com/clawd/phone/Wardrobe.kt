@@ -2,6 +2,9 @@ package com.clawd.phone
 
 import android.content.Context
 
+/** Праздничное украшение в уголке Clawd: буква — цвет, «.» — пусто, символы из lights — мигающие огоньки. */
+class WDecor(val key: String, val name: String, val rows: List<String>, val pal: Map<Char, Int>, val lights: String, val blink: IntArray)
+
 /** Частицы ауры: форма (rect/ring/oval/heart/text), цвета, раз в сколько секунд, падают ли сверху. */
 class WAura(val shape: String, val colors: IntArray, val text: String, val every: Float, val fall: Boolean)
 
@@ -24,13 +27,37 @@ class WItem(
     val bridge: List<Pair<Int, Char>> = emptyList(),
     val edge: List<Pair<Int, Char>> = emptyList(),
     val aura: WAura? = null,
-    /** Надевается сам (зонт, колпак, шапка Санты) — в шкафу не показываем. */
+    /** Надевается сам (зонт, ночной колпак) — в шкафу не показываем. */
     val auto: Boolean = false,
+    /** Праздник (halloween, newyear…) — вещь показывается ещё и во вкладке «Сезонное». */
+    val season: String? = null,
 )
 
 /** Гардероб Clawd: те же 7 слотов и вещи, что у Clawd на компе. Что надето — в настройках w_<слот>. */
 object Wardrobe {
     val slots get() = WardrobeData.SLOTS
+    val seasons get() = WardrobeData.SEASONS
+    val decors get() = WardrobeData.DECORS
+
+    /** Какой сейчас праздник по календарю (как clawd_extras.season на ПК). */
+    fun season(): String? {
+        val c = java.util.Calendar.getInstance()
+        val m = c.get(java.util.Calendar.MONTH) + 1
+        val d = c.get(java.util.Calendar.DAY_OF_MONTH)
+        return when {
+            (m == 10 && d >= 20) || (m == 11 && d <= 3) -> "halloween"
+            (m == 12 && d >= 15) || (m == 1 && d <= 15) -> "newyear"
+            m == 2 && d in 10..14 -> "valentine"
+            else -> null
+        }
+    }
+
+    /** Украшение в уголке: выбранное во вкладке «Сезонное», «auto» — по календарю, «none» — без. */
+    fun decorFor(prefs: Prefs): WDecor? = when (val choice = prefs.s("decor")) {
+        "none" -> null
+        "auto", "" -> season()?.let { decors[it] }
+        else -> decors[choice]
+    }
     val items get() = WardrobeData.ITEMS
     val slotKeys = WardrobeData.SLOTS.map { it.first }
 

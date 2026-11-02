@@ -114,7 +114,7 @@ class MainActivity : Activity() {
         val t = ui.t
         val d = resources.displayMetrics.density
         tabViews.forEachIndexed { i, v ->
-            v.setTextColor(if (i == on) 0xFF1A0F0A.toInt() else t.sub)
+            v.setTextColor(if (i == on) t.onAccent else t.sub)
             v.background = if (i == on) PixelDrawable(t.accent2, null, null, step = 3 * d) else null
         }
     }
@@ -169,6 +169,7 @@ class MainActivity : Activity() {
             "color",
         )
         ui.text("Гардероб", "Шапки, очки, крылья, узоры, ауры — больше сотни вещей", "crown", accent = true) { showTab(1) }
+        ui.text("Тема оформления", icon = "color", sub = { Themes.of(prefs).name + " — тапни, чтобы выбрать" }) { pickTheme() }
 
         ui.header("Разрешения")
         ui.text("Поверх других приложений", icon = "screen", sub = { if (Settings.canDrawOverlays(this)) "✓ Разрешено" else "Нажми, чтобы разрешить" }) {
@@ -406,6 +407,23 @@ class MainActivity : Activity() {
             requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
         }
         PetService.start(this)
+    }
+
+    /** Выбор темы: экран перерисовывается в новых цветах, облачко Clawd — тоже. */
+    private fun pickTheme() {
+        val keys = Themes.ALL.keys.toList()
+        val dialog = if (ui.t.isDark) android.R.style.Theme_DeviceDefault_Dialog_Alert else android.R.style.Theme_DeviceDefault_Light_Dialog_Alert
+        android.app.AlertDialog.Builder(this, dialog)
+            .setTitle("Тема оформления")
+            .setSingleChoiceItems(keys.map { Themes.ALL.getValue(it).name }.toTypedArray(), keys.indexOf(Themes.of(prefs).let { c ->
+                keys.first { Themes.ALL[it] === c }
+            })) { d, which ->
+                prefs.put("ui_theme", keys[which])
+                d.dismiss()
+                recreate()
+            }
+            .setNegativeButton("Отмена", null)
+            .show()
     }
 
     /** Список напоминаний: тап по пункту — удалить. */

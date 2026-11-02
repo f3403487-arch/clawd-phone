@@ -706,7 +706,11 @@ class PetService : Service(), SensorEventListener, SharedPreferences.OnSharedPre
                     if (!prefs.b("weather")) weatherNow = null
                     pose = null
                 }
-                "home" -> updateHome()
+                "home", "decor" -> updateHome()
+                "ui_theme" -> {
+                    fx.applyTheme()
+                    buddyFx?.applyTheme()
+                }
                 "rotate" -> if (!prefs.b("rotate") && rot != 0) applyRot(0)
                 "shake" -> if (running) {
                     pauseSensors()
@@ -3931,8 +3935,9 @@ class PetService : Service(), SensorEventListener, SharedPreferences.OnSharedPre
 
     private fun homeRect(): Rect {
         val hp = homePx()
-        val w = 34 * hp
-        val h = 6 * hp
+        val decor = Wardrobe.decorFor(prefs)
+        val w = HomeView.widthFor(decor) * hp
+        val h = HomeView.heightFor(decor) * hp
         val bottom = screenH - (if (screenH > screenW) navBar else 0)
         val left = dp(10f).toInt()
         return Rect(left, bottom - h, left + w, bottom)
@@ -3948,6 +3953,7 @@ class PetService : Service(), SensorEventListener, SharedPreferences.OnSharedPre
         v.pixel = homePx()
         v.full = food > 70f
         v.ballHere = ballView == null
+        v.decor = Wardrobe.decorFor(prefs)
         val lp = homeLp ?: params(r.width(), r.height(), touchable = true).also { homeLp = it }
         if (!homeShown) {
             lp.x = r.left
@@ -3960,7 +3966,7 @@ class PetService : Service(), SensorEventListener, SharedPreferences.OnSharedPre
                 removeWin(petView)
                 addWin(petView, petLp)
             }
-        } else if (lp.x != r.left || lp.y != r.top || lp.width != r.width()) {
+        } else if (lp.x != r.left || lp.y != r.top || lp.width != r.width() || lp.height != r.height()) {
             lp.x = r.left
             lp.y = r.top
             lp.width = r.width()
@@ -3968,6 +3974,22 @@ class PetService : Service(), SensorEventListener, SharedPreferences.OnSharedPre
             moveWin(v, lp)
         }
         v.invalidate()
+    }
+
+    /** Тап по украшению в уголке: Clawd радуется празднику. */
+    private fun decorTap() {
+        val d = Wardrobe.decorFor(prefs) ?: return
+        wakeUp()
+        hop(dp(520f))
+        repeat(3) { spawn(if (d.key == "valentine") "heart" else "spark") }
+        val phrases = when (d.key) {
+            "halloween" -> listOf("Бу! 🎃", "Сладость или гадость? 🍬", "Тыквочка светится!")
+            "newyear" -> listOf("С наступающим! 🎄", "Хочу рыбку в подарок 🐟", "Огоньки! ✨")
+            "valentine" -> listOf("Люблю тебя! 💘", "Сердечко! ♥", "Ты мой лучший друг 💗")
+            "spring" -> listOf("Пахнет весной 🌸", "Поливаю цветочек 💧", "Расти большой! 🌱")
+            else -> listOf("Жарко! ☀️", "Хочу на море 🏖", "Где моё мороженое? 🍦")
+        }
+        showBubble(phrases.random())
     }
 
     private fun hideHome() {
@@ -3981,6 +4003,7 @@ class PetService : Service(), SensorEventListener, SharedPreferences.OnSharedPre
             "bed" -> if (mode == Mode.SLEEP) wakeUp() else goToBed()
             "bowl" -> feed()
             "ball" -> startBall()
+            "decor" -> decorTap()
         }
     }
 
